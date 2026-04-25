@@ -1,0 +1,21 @@
+# Core
+jax[tpu]>=0.4.25
+flax>=0.8.3
+optax>=0.2.2
+orbax-checkpoint>=0.6.0
+
+# Data
+tensorflow>=2.15.0
+tensorflow-datasets>=4.9.4
+numpy>=1.24
+
+# NLP
+transformers>=4.40.0
+sentencepiece>=0.2.0
+datasets>=2.19.0
+
+# Utilities
+tqdm>=4.66
+rich>=13.7
+ml-collections>=0.1.1
+tensorboard>=2.15.0
