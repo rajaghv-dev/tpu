@@ -33,3 +33,5 @@ Running record of user prompts and intent for this repo.
 **P13:** update my github so that i can read it legibly
 
 **P14:** add qwen, deepseek, gemma, phi and all possible opensource models based on popularity, evals index, and plan your repo writing stage by stage than full at one go, make sure you better the repo by observing more results from the run n experiments so how do u logs for all those? also need to have code for better visualization and comprehension etc.
+
+**P15:** update context.md and prompts.md n my repo; and identify the gaps n possible suggestions, need full observability and traceability to build evidences for all the claims made from these experiments

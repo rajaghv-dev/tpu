@@ -1,421 +1,538 @@
-# Project Context — TPU vs GPU Inference Benchmark
+# Project Context — TPU × GPU Inference Benchmark
 
-Complete accumulated context for this project. Updated as decisions are made.
+Full accumulated context, design decisions, and strategy.
 Last updated: 2026-04-25
 
 ---
 
-## Project Goal
+## 1. Project Goal
 
-Build a rigorous, reproducible inference benchmark comparing Google TPU and NVIDIA GPU across:
-- Multiple model families (vision, NLP, audio, multimodal, novel architectures)
-- Multiple frameworks (JAX/Flax, PyTorch, torch_xla)
-- Multiple precision/quantization variants
-- Multiple compiler strategies
-- Microarchitecture and dataflow understanding via roofline analysis
-
-Results sync to GitHub automatically. Dashboard renders comparison charts statically (no server).
+Build a rigorous, reproducible inference benchmark comparing Google TPU and NVIDIA GPU.
+Every claim made by the benchmark must be backed by traceable evidence:
+raw timings, hardware utilisation metrics, profiler traces, statistical confidence intervals,
+and reproducibility metadata (git SHA, model revision, input seed, environment snapshot).
 
 ---
 
-## User Hardware Inventory
+## 2. User Hardware
 
-### Local GPUs (zero cost to run)
-| Card | VRAM | Memory BW | Peak BF16 | Notes |
-|------|------|-----------|-----------|-------|
-| RTX 3080 | 16 GB GDDR6X | 760 GB/s | 119 TFLOPs | Ampere, 2:4 sparsity support |
-| RTX 4090 | 24 GB GDDR6X | 1008 GB/s | 330 TFLOPs | Ada Lovelace, FP8 support |
-| DGX A100 (1 card) | 80 GB HBM2e | 2000 GB/s | 312 TFLOPs | SXM4, single card use |
+### Local GPUs (zero marginal cost)
+| Card | VRAM | Mem BW | Peak BF16 TFLOPs | Notes |
+|------|------|--------|-----------------|-------|
+| RTX 3080 | 16 GB GDDR6X | 760 GB/s | 119 | Ampere — 2:4 structured sparsity |
+| RTX 4090 | 24 GB GDDR6X | 1008 GB/s | 330 | Ada Lovelace — FP8, highest consumer BW |
+| A100 SXM (DGX, 1 card) | 80 GB HBM2e | 2000 GB/s | 312 | Highest memory BW in local fleet |
 
-### Cloud TPU (personal account: rajaghv@gmail.com)
-Primary: **v5e-1 preemptible** ($0.36/hr) for 3080 comparison
-Secondary: **v6e-1 preemptible** (~$0.75/hr) for 4090/A100 comparison
+### Cloud TPU — Single-Chip VMs (personal account: rajaghv@gmail.com)
+| TPU | HBM | Mem BW | Peak BF16 | Preemptible | Single-chip VM |
+|-----|-----|--------|-----------|-------------|----------------|
+| v2 chip | 8 GB | 600 GB/s | 45 TFLOPs | $1.35/hr (8-chip min) | No |
+| v3 chip | 16 GB | 900 GB/s | 123 TFLOPs | $2.40/hr (8-chip min) | No |
+| v4 chip | 32 GB | 1200 GB/s | 275 TFLOPs | $3.90/hr (8-chip min) | No |
+| **v5e-1** | **16 GB** | **820 GB/s** | **394 TFLOPs** | **$0.36/hr** | **Yes — primary** |
+| v5p chip | 95 GB | 2765 GB/s | 459 TFLOPs | $9.60/hr (8-chip min) | No |
+| **v6e-1 (Trillium)** | **32 GB** | **1640 GB/s** | **918 TFLOPs** | **~$0.75/hr** | **Yes — secondary** |
 
-### Colab
-- Colab Pro — v2-8 or v3-8 TPU runtime; A100/V100 GPU runtime
-- Good for smoke/quick suites; free after $9.99/mo subscription
+Primary pairing: **v5e-1 ↔ RTX 3080** (both 16 GB).
+Secondary pairing: **v6e-1 ↔ RTX 4090** (32 GB vs 24 GB).
+
+### Max Model Size Per Chip (Inference, BF16)
+| Chip | Comfortable | Tight (bs=1) | INT8 |
+|------|-------------|--------------|------|
+| v2 / v3 / v5e (16 GB) | 3B | 5B | 10B |
+| v4 / v6e (32 GB) | 7B | 10B | 20B |
+| v5p (95 GB) | 30B | 38B | 70B |
 
 ### External Services
-- HuggingFace account: available (gated model access: Gemma, PaliGemma, LLaMA)
-- HF Inference API: available (5th execution path — zero infra, compare managed serving)
-- GCS bucket: model weight cache (download once, reuse across VM restarts; ~$1.60/month for 80GB)
+- HuggingFace account: available (gated model access; token = `HF_TOKEN` env var)
+- HF Inference API: Serverless + Dedicated Endpoints (Path 5)
+- GCS bucket: model weight cache; ~80 GB; ~$1.60/month
+- Google Colab Pro: TPU v2-8 or v3-8; A100/V100 GPU
 
 ---
 
-## TPU Variants Accessible via Cloud VMs
-
-| TPU | Min slice | HBM/chip | Mem BW/chip | Peak BF16/chip | On-demand | Preemptible | Single-chip VM |
-|-----|-----------|----------|-------------|---------------|-----------|-------------|----------------|
-| v2 | 8 chips | 8 GB | 600 GB/s | 45 TFLOPs | $4.50/hr | $1.35/hr | No |
-| v3 | 8 chips | 16 GB | 900 GB/s | 123 TFLOPs | $8.00/hr | $2.40/hr | No |
-| v4 | 8 chips | 32 GB | 1200 GB/s | 275 TFLOPs | $13.00/hr | $3.90/hr | No |
-| **v5e** | **1 chip** | **16 GB** | **820 GB/s** | **394 TFLOPs** | **$1.20/hr** | **$0.36/hr** | **Yes — v5e-1** |
-| v5p | 8 chips | 95 GB | 2765 GB/s | 459 TFLOPs | ~$32/hr | ~$9.60/hr | No |
-| **v6e** | **1 chip** | **32 GB** | **1640 GB/s** | **918 TFLOPs** | **~$2.50/hr** | **~$0.75/hr** | **Yes — v6e-1** |
-
-### Max Model Size Per Chip (Inference Only)
-| Chip | HBM | BF16 comfortable | BF16 tight (bs=1) | INT8 |
-|------|-----|-----------------|-------------------|------|
-| v2 | 8 GB | 1.5B | 2.5B | 5B |
-| v3 | 16 GB | 3B | 5B | 10B |
-| v5e | 16 GB | 3B | 5B | 10B |
-| v4 | 32 GB | 7B | 10B | 20B |
-| v6e | 32 GB | 7B | 10B | 20B |
-| v5p | 95 GB | 30B | 38B | 70B |
-
----
-
-## The 4 (+1) Execution Paths
+## 3. The 5 Execution Paths
 
 ```
-                   Same Model Weights (HuggingFace pretrained)
-                              |
-              ┌───────────────┼────────────────┐
-           JAX/Flax        JAX/Flax         PyTorch
-              │                │                │
-         ┌────▼────┐     ┌─────▼─────┐   ┌─────┴──────┐
-         │ Path 1  │     │  Path 2   │   │  Path 3    │ Path 4
-         │JAX+TPU  │     │ JAX+GPU   │   │ PyTorch+GPU│ PT+torch_xla+TPU
-         │ (XLA)   │     │  (CUDA)   │   │  (CUDA)    │ (XLA)
-         └─────────┘     └───────────┘   └────────────┘
-              │                                 │
-         Path 5: HF Inference API (managed, serverless, no infra)
+            Same pretrained weights (HuggingFace Hub)
+                           |
+         ┌─────────────────┼──────────────────────┐
+      JAX/Flax          JAX/Flax               PyTorch
+         │                  │                      │
+    ┌────▼────┐       ┌──────▼─────┐       ┌───────┴────┐    ┌────────────┐
+    │ Path 1  │       │  Path 2    │       │  Path 3    │    │  Path 4    │
+    │JAX+TPU  │       │ JAX+GPU    │       │ PyTorch+   │    │ PT+        │
+    │  (XLA)  │       │  (CUDA)    │       │   GPU      │    │ torch_xla  │
+    └─────────┘       └────────────┘       └────────────┘    └────────────┘
+                                                              (TPU via XLA)
+
+    Path 5:  HuggingFace Inference API  (serverless / dedicated endpoint)
 ```
 
-| Comparison pair | What it isolates |
-|----------------|-----------------|
-| Path 1 vs 2 | Pure hardware: TPU vs GPU, JAX constant |
-| Path 2 vs 3 | Pure framework: JAX vs PyTorch, GPU constant |
-| Path 1 vs 4 | Pure framework on TPU: JAX vs torch_xla |
-| Path 3 vs 4 | Compiler on TPU: native CUDA vs XLA (PyTorch API constant) |
-| Path 1 vs 3 | Real-world: production TPU vs production GPU |
-| Path 5 vs all | Managed inference overhead vs self-hosted |
+| Pair | Isolates |
+|------|---------|
+| 1 vs 2 | Hardware only (TPU vs GPU), JAX constant |
+| 2 vs 3 | Framework only (JAX vs PyTorch), GPU constant |
+| 1 vs 4 | Framework on TPU (JAX/XLA vs torch_xla) |
+| 3 vs 4 | Compiler only (CUDA vs XLA), PyTorch API constant |
+| 1 vs 3 | Real-world (production TPU vs production GPU) |
+| 5 vs all | Managed serving overhead vs self-hosted |
 
 ---
 
-## HuggingFace Integration
+## 4. Full Model Registry (~75 Models)
 
-### Model Loading
-- All models loaded via `transformers` (FlaxAutoModel for JAX, AutoModel for PyTorch)
-- Same pretrained weights across all 4 self-hosted paths — fair comparison
-- `HF_TOKEN` env var for gated models (Gemma, PaliGemma, CodeGemma)
-- `HF_HOME=/tmp/hf_cache` pointing to GCS-backed directory
+### 4.1 Vision — Classification / Feature Extraction
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| ResNet-50 | 86M | `microsoft/resnet-50` | Conv baseline |
+| ConvNeXt-XL | 350M | `facebook/convnext-xlarge-224-22k` | Modern pure conv |
+| EfficientNet-B7 | 66M | `google/efficientnet-b7` | Depthwise — kills MXU |
+| EfficientViT-L3 | 246M | `mit-han-lab/efficientvit-l3` | Efficient hybrid |
+| ViT-B/16 | 86M | `google/vit-base-patch16-224` | Pure attention baseline |
+| ViT-L/16 | 307M | `google/vit-large-patch16-224` | Larger ViT |
+| DINOv2-L | 307M | `facebook/dinov2-large` | SSL |
+| SigLIP-B/16 | 400M | `google/siglip-base-patch16-224` | Google CLIP replacement |
+| SAM-L | 312M | `facebook/sam-vit-large` | Segment-anything |
+| EVA-02-L | 307M | `Yuxin-CV/EVA-02` | CLIP-pretrained ViT |
 
-### GCS Cache Strategy
-```
-One-time setup (local laptop):
-  huggingface-cli download <model> --cache-dir ./hf_cache/
-  gsutil -m cp -r ./hf_cache/ gs://rajaghv-bench-cache/models/
+### 4.2 Vision — Detection
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| DETR-ResNet50 | 41M | `facebook/detr-resnet-50` | Transformer detection |
+| RT-DETR-L | 32M | `PekingU/rtdetr_r50vd` | Real-time DETR |
 
-Every VM startup (~30s):
-  gsutil -m cp -r gs://rajaghv-bench-cache/models/ /tmp/hf_cache/
-  export HF_HOME=/tmp/hf_cache
+### 4.3 Vision — Diffusion / Generative
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| DiT-XL/2 | 675M | `facebook/DiT-XL-2-256` | Pure transformer diffusion — TPU's best |
+| SD-UNet | 860M | SD v1.5 UNet only | Conv+cross-attn hybrid |
 
-GCS cost: ~80GB × $0.02/GB/month = $1.60/month
-```
+### 4.4 NLP — Encoders
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| BERT-base | 110M | `bert-base-uncased` | Historical baseline |
+| RoBERTa-large | 355M | `roberta-large` | Better pretraining |
+| DeBERTa-v3-large | 400M | `microsoft/deberta-v3-large` | SOTA encoder |
+| ModernBERT-base | 149M | `answerdotai/ModernBERT-base` | Dec 2024, Flash attn |
+| ModernBERT-large | 395M | `answerdotai/ModernBERT-large` | Latest encoder SOTA |
+| BGE-large-en-v1.5 | 335M | `BAAI/bge-large-en-v1.5` | Dense retrieval — huge bs |
+| E5-large-v2 | 335M | `intfloat/e5-large-v2` | Universal embedding |
+| nomic-embed-v1.5 | 137M | `nomic-ai/nomic-embed-text-v1.5` | Matryoshka + RoPE |
 
-### HF Inference API (Path 5)
-- Free tier: 1000 requests/day, rate-limited
-- PRO tier ($9/month): 10× throughput, no rate limit on most models
-- Serverless Inference: auto-scales, no VM management
-- Dedicated Endpoints: deploy model on specific hardware (GPU/CPU), reserved capacity
-- Use case: compare managed serving latency vs self-hosted TPU/GPU
+### 4.5 NLP — Decoders (LLMs, autoregressive inference)
+| Model | Params | HF ID | Gated | Story |
+|-------|--------|-------|-------|-------|
+| GPT-2 XL | 1.5B | `gpt2-xl` | No | Historical baseline |
+| OPT-2.7B | 2.7B | `facebook/opt-2.7b` | No | ALiBi — no RoPE |
+| BLOOM-3B | 3B | `bigscience/bloom-3b` | No | ALiBi positional encoding |
+| Falcon-RW-1B | 1B | `tiiuae/falcon-rw-1b` | No | Multi-query attention |
+| TinyLlama-1.1B | 1.1B | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` | No | Efficient small LLM |
+| SmolLM2-1.7B | 1.7B | `HuggingFaceTB/SmolLM2-1.7B` | No | HF flagship small |
+| OLMo-2-1B | 1.2B | `allenai/OLMo-2-1124-7B` | No | Fully open |
+| Llama-3.2-1B | 1B | `meta-llama/Llama-3.2-1B` | Yes | Meta smallest, GQA |
+| Llama-3.2-3B | 3B | `meta-llama/Llama-3.2-3B` | Yes | Meta 3B |
+| Mistral-7B-v0.3 | 7B | `mistralai/Mistral-7B-v0.3` | No | Sliding window attn (v6e-1) |
+| StableLM-2-1.6B | 1.6B | `stabilityai/stablelm-2-1_6b` | No | Open 1.6B |
+| StableLM-3B | 3B | `stabilityai/stablelm-3b-4e1t` | No | Open 3B |
+| **Gemma-2B** | **2B** | **`google/gemma-2b`** | Yes | **Google TPU co-designed** |
+| **Gemma-2-2B** | **2.6B** | **`google/gemma-2-2b`** | Yes | GQA + sliding window |
+| **Gemma-2-2B-IT** | **2.6B** | **`google/gemma-2-2b-it`** | Yes | Instruction-tuned variant |
+| **Gemma-3-1B** | **1B** | **`google/gemma-3-1b`** | Yes | **Newest 2025, multimodal-capable** |
+| **Gemma-3-4B** | **4B** | **`google/gemma-3-4b`** | Yes | **At the 4B ceiling** |
+| RecurrentGemma-2B | 2B | `google/recurrentgemma-2b` | Yes | RNN-hybrid — recurrence vs attention |
+| **Phi-1.5** | **1.3B** | **`microsoft/phi-1_5`** | No | Textbook data training story |
+| **Phi-2** | **2.7B** | **`microsoft/phi-2`** | No | Quality/size ratio benchmark |
+| **Phi-3-mini-4k** | **3.8B** | **`microsoft/Phi-3-mini-4k-instruct`** | No | Near 4B ceiling |
+| **Phi-3.5-mini** | **3.8B** | **`microsoft/Phi-3.5-mini-instruct`** | No | 128k context |
+| **Phi-3.5-MoE** | **6.6B / 2.7B active** | **`microsoft/Phi-3.5-MoE-instruct`** | No | **MoE sparse routing story** |
+| **Qwen2.5-0.5B** | **500M** | **`Qwen/Qwen2.5-0.5B`** | No | Smallest modern LLM — latency floor |
+| **Qwen2.5-1.5B** | **1.5B** | **`Qwen/Qwen2.5-1.5B`** | No | Best 1.5B on most benchmarks |
+| **Qwen2.5-3B** | **3B** | **`Qwen/Qwen2.5-3B`** | No | Strong multilingual |
+| **Qwen2.5-Coder-1.5B** | **1.5B** | **`Qwen/Qwen2.5-Coder-1.5B`** | No | Code — different token dist |
+| **Qwen2.5-Coder-3B** | **3B** | **`Qwen/Qwen2.5-Coder-3B`** | No | Code 3B |
+| **DeepSeek-R1-Distill-Qwen-1.5B** | **1.5B** | **`deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`** | No | **Reasoning — long chain-of-thought decode** |
+| **DeepSeek-R1-Distill-Qwen-7B** | **7B** | **`deepseek-ai/DeepSeek-R1-Distill-Qwen-7B`** | No | v6e-1 only; #1 reasoning evals |
+| **DeepSeek-Coder-V2-Lite** | **2.3B active / 16B total** | **`deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct`** | No | **MoE — sparse routing** |
+| MPT-7B | 7B | `mosaicml/mpt-7b` | No | ALiBi + FlashAttn (v6e-1) |
 
----
+### 4.6 NLP — Novel Architectures (Non-Transformer)
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| Mamba-2.8B | 2.8B | `state-spaces/mamba-2.8b` | SSM — custom CUDA, no XLA prim |
+| Mamba2-2.7B | 2.7B | `state-spaces/mamba2-2.7b` | Improved SSM |
+| RWKV-4-3B | 3B | `RWKV/rwkv-4-world-3b` | Linear RNN — O(1) memory |
 
-## Full Model Registry
+### 4.7 NLP — Code Models
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| StarCoder2-3B | 3B | `bigcode/starcoder2-3b` | 16k context, infill mask |
+| CodeGemma-2B | 2B | `google/codegemma-2b` | Google code — pairs with Gemma-2B |
+| Qwen2.5-Coder-1.5B | 1.5B | `Qwen/Qwen2.5-Coder-1.5B` | see 4.5 |
+| Qwen2.5-Coder-3B | 3B | `Qwen/Qwen2.5-Coder-3B` | see 4.5 |
 
-### Vision — Encoders (Image Classification / Feature Extraction)
+### 4.8 Audio
+| Model | Params | HF ID | Story |
+|-------|--------|-------|-------|
+| Whisper-base | 74M | `openai/whisper-base` | Small audio baseline |
+| Whisper-medium | 307M | `openai/whisper-medium` | Balanced |
+| Whisper-large-v3 | 1.5B | `openai/whisper-large-v3` | Best quality |
+| wav2vec2-large | 317M | `facebook/wav2vec2-large` | Heavy conv front-end |
+| HuBERT-large | 316M | `facebook/hubert-large-ls960-ft` | SSL audio |
+| SeamlessM4T-medium | 1.2B | `facebook/seamless-m4t-medium` | Speech translation |
+| MMS-1B | 1B | `facebook/mms-1b-all` | 1000+ language multilingual |
+| EnCodec-24kHz | 44M | `facebook/encodec_24khz` | Conv + LSTM — sequential story |
 
-| Model | Params | Architecture | HF ID | Key characteristic |
-|-------|--------|-------------|-------|-------------------|
-| ResNet-50 | 86M | Conv+BN+Residual | `microsoft/resnet-50` | Conv-heavy baseline |
-| ConvNeXt-XL | 350M | Modern depthwise conv | `facebook/convnext-xlarge-224-22k` | Pure conv, no attn |
-| EfficientNet-B7 | 66M | Depthwise+SE | `google/efficientnet-b7` | Kills MXU/Tensor Core |
-| ViT-B/16 | 86M | Pure self-attention | `google/vit-base-patch16-224` | Pure attention |
-| ViT-L/16 | 307M | Pure self-attention | `google/vit-large-patch16-224` | Larger ViT |
-| DINOv2-L | 307M | ViT + self-sup | `facebook/dinov2-large` | SSL features |
-| SigLIP-B/16 | 400M | ViT + sigmoid loss | `google/siglip-base-patch16-224` | Google, CLIP replacement |
-| SAM-L | 312M | ViT + mask decoder | `facebook/sam-vit-large` | Segment anything |
-| EVA-02-L | 307M | Improved ViT | `Yuxin-CV/EVA-02` | CLIP-pretrained |
-| EfficientViT-L3 | 246M | Linear attn+conv | `mit-han-lab/efficientvit-l3` | Efficient hybrid |
-
-### Vision — Object Detection
-
-| Model | Params | Architecture | HF ID | Key characteristic |
-|-------|--------|-------------|-------|-------------------|
-| DETR-ResNet50 | 41M | Transformer decoder | `facebook/detr-resnet-50` | End-to-end transformer det. |
-| RT-DETR-L | 32M | RT detection transformer | `PekingU/rtdetr_r50vd` | Real-time DETR |
-
-### Vision — Generative (Diffusion)
-
-| Model | Params | Architecture | HF ID | Key characteristic |
-|-------|--------|-------------|-------|-------------------|
-| SD-UNet | 860M | U-Net + cross-attn | `runwayml/stable-diffusion-v1-5` (UNet only) | Conv+attention hybrid |
-| DiT-XL/2 | 675M | Pure transformer | `facebook/DiT-XL-2-256` | Pure matmul diffusion — great TPU fit |
-
-### NLP — Encoders
-
-| Model | Params | Architecture | HF ID | Key characteristic |
-|-------|--------|-------------|-------|-------------------|
-| BERT-base | 110M | Transformer enc | `bert-base-uncased` | Historical baseline |
-| RoBERTa-large | 355M | BERT variant | `roberta-large` | Better pretraining |
-| DeBERTa-v3-large | 400M | Disentangled attn | `microsoft/deberta-v3-large` | SOTA encoder |
-| ModernBERT-base | 149M | Flash attn + RoPE | `answerdotai/ModernBERT-base` | Dec 2024, 8192 ctx |
-| ModernBERT-large | 395M | Flash attn + RoPE | `answerdotai/ModernBERT-large` | Latest encoder SOTA |
-| BGE-large-en | 335M | BERT-based | `BAAI/bge-large-en-v1.5` | Dense retrieval/RAG |
-| E5-large-v2 | 335M | BERT-based | `intfloat/e5-large-v2` | Universal embedding |
-
-### NLP — Decoders (Autoregressive LLMs)
-
-| Model | Params | Architecture | HF ID | Gated | Key characteristic |
-|-------|--------|-------------|-------|-------|--------------------|
-| GPT-2 XL | 1.5B | Original transformer | `gpt2-xl` | No | Historical baseline |
-| TinyLlama-1.1B | 1.1B | LLaMA arch, GQA | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` | No | Efficient small LLM |
-| SmolLM2-1.7B | 1.7B | LLaMA arch | `HuggingFaceTB/SmolLM2-1.7B` | No | HF flagship small model |
-| OLMo-2-1B | 1.2B | Fully open | `allenai/OLMo-2-1124-7B` | No | Reproducible research |
-| Gemma-2B | 2B | MQA + RoPE | `google/gemma-2b` | Yes | Google — TPU co-designed |
-| Gemma-2-2B | 2.6B | GQA + sliding window | `google/gemma-2-2b` | Yes | Newer Gemma |
-| RecurrentGemma-2B | 2B | RNN-hybrid (RGLRU) | `google/recurrentgemma-2b` | Yes | Google RNN vs transformer |
-| Phi-2 | 2.7B | Transformer | `microsoft/phi-2` | No | Punches above weight |
-| Phi-3-mini-4k | 3.8B | LLaMA arch | `microsoft/Phi-3-mini-4k-instruct` | No | Near 4B ceiling |
-| Qwen2.5-3B | 3B | GQA + RoPE | `Qwen/Qwen2.5-3B` | No | Strong multilingual |
-| StableLM-3B | 3B | LLaMA arch | `stabilityai/stablelm-3b-4e1t` | No | Open 3B |
-| StableLM-2-1.6B | 1.6B | LLaMA arch | `stabilityai/stablelm-2-1_6b` | No | Small baseline |
-
-### NLP — Code Models
-
-| Model | Params | HF ID | Key characteristic |
-|-------|--------|-------|-------------------|
-| StarCoder2-3B | 3B | `bigcode/starcoder2-3b` | Code, 16k context |
-| CodeGemma-2B | 2B | `google/codegemma-2b` | Google code model |
-
-### NLP — Novel Architectures (Non-Transformer)
-
-| Model | Params | Architecture | HF ID | Key characteristic |
-|-------|--------|-------------|-------|-------------------|
-| Mamba-2.8B | 2.8B | SSM (selective scan) | `state-spaces/mamba-2.8b` | Custom CUDA kernel; bad for XLA |
-| Mamba2-2.7B | 2.7B | Structured SSM | `state-spaces/mamba2-2.7b` | Improved SSM |
-| RWKV-4-3B | 3B | Linear RNN | `RWKV/rwkv-4-world-3b` | Linear transformer alternative |
-
-### Audio
-
-| Model | Params | Architecture | HF ID | Key characteristic |
-|-------|--------|-------------|-------|-------------------|
-| Whisper-base | 74M | Conv+transformer enc-dec | `openai/whisper-base` | Small, fast |
-| Whisper-medium | 307M | Same | `openai/whisper-medium` | Balanced |
-| Whisper-large-v3 | 1.5B | Same | `openai/whisper-large-v3` | Best quality |
-| wav2vec2-large | 317M | Conv + transformer | `facebook/wav2vec2-large` | Conv feature ext |
-| HuBERT-large | 316M | Conv + transformer | `facebook/hubert-large-ls960-ft` | SSL audio |
-| SeamlessM4T-medium | 1.2B | Multi-task | `facebook/seamless-m4t-medium` | Speech translation |
-| MMS-1B | 1B | wav2vec2-based | `facebook/mms-1b-all` | Multilingual |
-| EnCodec-24kHz | 44M | Conv + LSTM | `facebook/encodec_24khz` | Neural audio codec |
-
-### Multimodal — Vision-Language (≤4B)
-
-| Model | Params | Architecture | HF ID | Gated | Key characteristic |
-|-------|--------|-------------|-------|-------|--------------------|
-| CLIP ViT-L/14 | 428M | Dual encoder | `openai/clip-vit-large-patch14` | No | Contrastive baseline |
-| SigLIP-SO400M | 400M | Sigmoid CLIP | `google/siglip-so400m-patch14-384` | No | Google CLIP replacement |
-| moondream2 | 1.86B | SigLIP + Phi | `vikhyatk/moondream2` | No | Tiny capable VLM |
-| SmolVLM-2B | 2B | SigLIP + SmolLM | `HuggingFaceTB/SmolVLM-Instruct` | No | Very new (Dec 2024) |
-| PaliGemma-3B | 3B | SigLIP + Gemma | `google/paligemma-3b-pt-224` | Yes | Google VLM — TPU co-designed |
-| LLaVA-Phi3 | ~4B | CLIP + Phi-3-mini | `xtuner/llava-phi-3-mini-hf` | No | Phi-3 backbone |
-| Idefics2-8B | 8B | Mistral + vision | — | No | Too big for v5e BF16 |
+### 4.9 Multimodal — Vision-Language (≤4B)
+| Model | Params | HF ID | Gated | Story |
+|-------|--------|-------|-------|-------|
+| CLIP ViT-L/14 | 428M | `openai/clip-vit-large-patch14` | No | Contrastive baseline |
+| SigLIP-SO400M | 400M | `google/siglip-so400m-patch14-384` | No | Google CLIP replacement |
+| moondream2 | 1.86B | `vikhyatk/moondream2` | No | Tiny capable VLM |
+| SmolVLM-2B | 2B | `HuggingFaceTB/SmolVLM-Instruct` | No | Dec 2024 |
+| PaliGemma-3B | 3B | `google/paligemma-3b-pt-224` | Yes | All-Google: model+compiler+hardware |
+| LLaVA-Phi3 | ~4B | `xtuner/llava-phi-3-mini-hf` | No | Phi-3 backbone |
+| ImageBind | ~1.2B | `facebook/imagebind` | No | 6-modality encoder |
 
 ---
 
-## Experiment Dimensions (Variants)
+## 5. Experiment Dimensions
 
 ### Precision
-| Format | TPU support | GPU support | Notes |
-|--------|-------------|-------------|-------|
+| Format | TPU | GPU | Key insight |
+|--------|-----|-----|-------------|
 | FP32 | Yes | Yes | Baseline |
-| BF16 | Native (same speed as FP32) | Via autocast (2× speedup) | Key differentiator |
-| FP16 | Limited | Native | Different numerics from BF16 |
-| INT8 | v5+ native | Tensor Cores (Ampere+) | Post-training quantization |
-| INT4 | Limited | Tensor Cores (bitsandbytes) | GPU advantage |
-| FP8 | v5e/v6e | 4090 (Ada), H100 | Very new |
+| BF16 | **Native = FP32 speed** | ~2× faster via Tensor Cores | TPU: free; GPU: a choice |
+| INT8 | v5+ (~1.3×) | Tensor Cores (~2×) | GPU wins more |
+| INT4 | No | bitsandbytes | GPU-exclusive |
+| FP8 | v5e/v6e | 4090/H100 | Frontier |
 
-### Compilation Strategy
-| Strategy | JAX path | PyTorch path | What you learn |
-|----------|----------|-------------|---------------|
-| Eager | Disabled jit | Default PyTorch | Baseline, overhead visible |
-| Compiled (default) | `jax.jit` | `torch.compile(mode='default')` | Standard production |
-| Max-optimised | `jax.jit` (always max) | `torch.compile(mode='max-autotune')` | Peak performance ceiling |
-| CUDA Graphs | N/A | `torch.cuda.make_graphed_callables` | GPU-specific kernel replay |
-| XLA persistent cache | `JAX_COMPILATION_CACHE_DIR` | N/A | XLA reuse across runs |
+### Compilation
+| Mode | JAX | PyTorch | Measures |
+|------|-----|---------|---------|
+| Eager | disabled jit | default | Overhead baseline |
+| Compiled | `jax.jit` | `torch.compile(default)` | Production mode |
+| Max-optimised | `jax.jit` | `torch.compile(max-autotune)` | Peak ceiling |
+| CUDA Graphs | — | `make_graphed_callables` | GPU kernel-replay at bs=1 |
+| XLA persistent cache | `JAX_COMPILATION_CACHE_DIR` | — | Compile amortisation |
 
 ### Sparsity / Pruning
-| Variant | TPU behaviour | GPU behaviour | Key insight |
-|---------|--------------|---------------|-------------|
-| Dense (baseline) | Optimal | Optimal | Reference |
-| Unstructured 50% | Slower (dense matmul still runs) | Slightly slower | Sparsity ≠ speed without hardware support |
-| Unstructured 90% | Slower | Marginally faster | Same story, more dramatic |
-| Structured (channel) | Linear speedup | Linear speedup | Both handle this |
-| 2:4 structured | No hardware support | 2× Tensor Core speedup | NVIDIA-specific hardware win |
+| Variant | TPU | GPU | Key insight |
+|---------|-----|-----|-------------|
+| Dense | Baseline | Baseline | — |
+| Unstructured 50/90% | Same or slower | Marginally faster | No hardware benefit without structure |
+| 2:4 structured | No support | **2× Sparse Tensor Core** | NVIDIA-exclusive |
 
-### Attention Variants (per-model where applicable)
-- MHA (Multi-Head Attention) — standard
-- MQA (Multi-Query) — fewer KV heads, less memory BW
-- GQA (Grouped Query) — between MHA and MQA
-- Sliding Window (Mistral/Gemma-2) — O(n) instead of O(n²)
-- Flash Attention 2 (GPU) vs Splash Attention (TPU) — memory-efficient attention impl
-
-### Serving Modes (LLMs only)
-- Prefill only (process prompt, no generation)
-- Single-token decode (KV-cache warm, measure token/sec)
-- Batch decode (throughput mode)
+### LLM Serving Modes
+| Mode | Measures |
+|------|---------|
+| Prefill-only | Prompt processing throughput (tokens/sec) |
+| Single-token decode | KV-cache warm, autoregressive token/sec |
+| Batch decode | Throughput at multiple concurrency levels |
 
 ---
 
-## Per-Experiment Protocol (1–3 min)
+## 6. Per-Experiment Protocol
 
 ```
-Step 1 — Compile/trace      1 forward pass    Record compile_time_s separately
-Step 2 — Warmup            20 forward passes  Discard; kernels/cache stabilise
-Step 3 — Latency (bs=1)    50 forward passes  Record p50, p95, p99 ms
-Step 4 — Throughput        50 forward passes  Max batch that fits; record samples/sec
-Step 5 — Profile            5 forward passes  Full trace (jax.profiler / torch.profiler)
-Step 6 — Memory sweep       1 pass per bs     bs=1,2,4,8,... until OOM; record ceiling
+Phase           Passes   Measure
+─────────────────────────────────────────────────────
+1. Compile      1        compile_time_s (XLA trace or torch.compile)
+2. Warmup       20       discard — kernels and caches stabilise
+3. Latency      100      bs=1 → p50 / p95 / p99 / mean / std_dev (ms)
+4. Throughput   100      max_batch → samples/sec ± std_dev
+5. Profile      10       full trace → op breakdown, roofline data
+6. Memory sweep 1/bs     bs=1,2,4,8,… → peak_memory_gb per level
+7. Numerics     1        FP32 vs BF16 output L2 norm (correctness check)
 ```
 
 ---
 
-## Suite Definitions
+## 7. Suite Definitions
 
-| Suite | Models | Variants | Experiments | Estimated time | TPU v5e cost |
-|-------|--------|----------|-------------|----------------|--------------|
-| `smoke` | 1 (BERT-base) | FP32+BF16, bs=1 | 4 | ~8 min | $0.05 |
-| `quick` | 6 (1 per domain) | BF16 only, bs=1+max | 24 | ~50 min | $0.30 |
-| `domain` | All in one domain | BF16+FP32 | ~30 | ~60 min | $0.36 |
-| `arch` | Novel architectures | BF16+FP32 | ~20 | ~40 min | $0.24 |
-| `full` | All 45 models | All variants | ~200 | ~7 hrs | $2.52 |
-
-Full suite ($2.52) can be run weekly for ~$10/month.
+| Suite | Models | Variants | Experiments | Wall time | v5e-1 cost |
+|-------|--------|----------|-------------|-----------|------------|
+| `smoke` | 1 (BERT-base) | FP32+BF16 | 4 | ~8 min | $0.05 |
+| `quick` | 6 (1/domain) | BF16 | 24 | ~50 min | $0.30 |
+| `domain` | All in 1 domain | FP32+BF16 | ~30 | ~60 min | $0.36 |
+| `arch` | Novel arches | BF16 | ~20 | ~40 min | $0.24 |
+| `full` | All ~75 models | All variants | ~800 | ~8 hrs | $2.88 |
 
 ---
 
-## Results Schema (JSONL — one line per experiment)
+## 8. Results Schema (JSONL — one line per experiment)
 
-```json
+```jsonc
 {
-  "timestamp": "ISO8601",
-  "run_id": "uuid",
-  "device": "tpu_v5e | tpu_v6e | rtx3080 | rtx4090 | a100_dgx",
+  // Identity
+  "run_id": "uuid-v4",
+  "experiment_id": "sha256-of-config",
+  "timestamp": "2026-04-25T10:32:00Z",
+
+  // Lineage (reproducibility anchors)
+  "git_sha": "abc1234",
+  "jax_version": "0.4.25",
+  "torch_version": "2.3.0",
+  "torch_xla_version": "2.3.0",
+  "cuda_version": "12.4",
+  "cudnn_version": "8.9",
+  "tpu_runtime_version": "tpu-vm-base-v5e",
+  "hf_model_revision": "sha256-of-weights",
+  "input_seed": 42,
+  "environment_hash": "sha256-of-key-versions",
+
+  // Hardware
+  "device": "tpu_v5e1 | tpu_v6e1 | rtx3080 | rtx4090 | a100_dgx",
   "framework": "jax | pytorch | torch_xla | hf_api",
   "path": 1,
+
+  // Model
   "model": "bert_base",
+  "model_hf_id": "bert-base-uncased",
   "domain": "nlp_encoder",
-  "architecture": "transformer_encoder",
+  "architecture_family": "transformer_encoder",
+  "attention_variant": "mha",
+  "positional_encoding": "absolute",
   "params_M": 110,
+
+  // Variant
   "precision": "bf16",
   "pruning": "dense",
+  "sparsity_ratio": 0.0,
   "compiled": true,
   "compile_mode": "default",
+  "kv_cache": false,
+
+  // Input spec
   "batch_size": 32,
   "seq_len": 128,
+  "image_size": null,
+
+  // Compile metrics
   "compile_time_s": 12.4,
-  "warmup_time_s": 3.1,
+  "compile_cache_hit": false,
+
+  // Latency (100 passes, bs=1)
+  "latency_mean_ms": 8.4,
+  "latency_std_ms": 0.3,
   "latency_p50_ms": 8.2,
   "latency_p95_ms": 9.1,
   "latency_p99_ms": 9.8,
-  "throughput_samples_sec": 3901,
+  "latency_cv_pct": 3.6,       // coefficient of variation — high = unstable
+
+  // Throughput (100 passes, max batch)
+  "throughput_mean_samples_sec": 3901,
+  "throughput_std_samples_sec": 45,
   "tokens_per_sec": 499328,
+
+  // Memory
   "peak_memory_gb": 4.2,
+  "weight_memory_gb": 0.22,
+  "activation_memory_gb": 3.98,
   "max_batch_before_oom": 256,
+
+  // Compute analysis
   "flops_per_sample_G": 22.4,
-  "arithmetic_intensity": 312,
-  "mxu_utilization_pct": 71,
-  "sm_utilization_pct": null,
-  "cost_per_1k_samples_usd": 0.00009
+  "arithmetic_intensity_flops_per_byte": 312,
+  "achieved_tflops": 87.3,
+  "peak_tflops_device": 394,
+  "mfu_pct": 22.2,              // model FLOP utilisation
+
+  // Hardware utilisation
+  "mxu_utilization_pct": 71,    // TPU only — from Cloud Monitoring
+  "sm_utilization_pct": null,   // GPU only — from pynvml
+  "memory_bw_utilization_pct": 58,
+  "device_power_w": null,       // GPU: pynvml; TPU: not exposed
+
+  // Thermal / clock state
+  "gpu_clock_mhz": null,
+  "gpu_temp_c": null,
+  "throttle_detected": false,
+
+  // Numerical correctness
+  "output_l2_vs_fp32": 0.0012, // null if this IS the fp32 run
+  "output_cosine_sim_vs_fp32": 0.9998,
+
+  // Quality flags
+  "flags": [],                  // ["compile_slow","high_variance","near_oom"]
+
+  // Cost
+  "device_cost_usd_per_hr": 0.36,
+  "experiment_cost_usd": 0.012,
+  "cost_per_1k_samples_usd": 0.000092
 }
 ```
 
 ---
 
-## Repository Structure
+## 9. Observability Infrastructure
+
+### 9.1 System Monitor (`observe/system_monitor.py`)
+Captures hardware state before and after each experiment:
+- **GPU:** `pynvml` → utilisation %, memory used/free, power draw (W), temperature (°C), clock speeds, throttle reasons
+- **TPU:** Google Cloud Monitoring API → MXU utilisation, HBM used, infeed queue depth, step time
+- **Host CPU/RAM:** `psutil` → CPU %, RAM used, I/O wait
+
+### 9.2 FLOPs Counter (`observe/flops_counter.py`)
+- **JAX:** `jax.make_jaxpr()` → parse HLO operations, sum FLOPs per op
+- **PyTorch:** `torch.profiler` with `profile_memory=True, with_flops=True`, or `fvcore.nn.FlopCountAnalysis`
+- Output: `flops_per_sample_G`, `flops_breakdown_by_op_type` (matmul, conv, attn, norm, elementwise)
+
+### 9.3 Memory Profiler (`observe/memory_profiler.py`)
+- Peak HBM/VRAM (existing)
+- Timeline: memory snapshot every N steps → detect spikes
+- Per-layer breakdown: activation vs weight vs KV-cache (LLMs)
+- JAX: `jax.profiler.device_memory_profile()` → pprof format
+- PyTorch: `torch.cuda.memory_snapshot()` + `torch.cuda.memory_stats()`
+
+### 9.4 Statistical Analyser (`observe/stats.py`)
+- Collect all N pass timings as raw array
+- Compute mean, std, p50, p95, p99, coefficient of variation
+- Run Grubbs test for outliers, flag if CV > 10%
+- Require minimum N=100 passes for latency claims (configurable)
+- Output: `latency_distribution.json` per experiment
+
+### 9.5 Numerical Validator (`observe/numerics.py`)
+- Run each model in FP32 first (reference)
+- For each precision variant, compare output tensor:
+  - L2 norm of difference: `‖y_fp32 − y_variant‖₂`
+  - Cosine similarity
+  - Max absolute error
+- Flags run if cosine sim < 0.99 (configurable threshold)
+- Records `output_l2_vs_fp32` and `output_cosine_sim_vs_fp32` in schema
+
+### 9.6 Lineage Tracker (`observe/lineage.py`)
+Records at experiment start:
+- `git_sha`: `git rev-parse HEAD`
+- `hf_model_revision`: HuggingFace model card `sha` field
+- `input_seed`: RNG seed used for synthetic inputs
+- `environment_hash`: SHA256 of key version string (JAX + CUDA + driver)
+- All framework versions via `importlib.metadata`
+
+### 9.7 Profiler Traces (`observe/tracer.py`)
+- **JAX:** `jax.profiler.trace(log_dir)` → 10 steps → TensorBoard + Perfetto
+- **PyTorch GPU:** `torch.profiler.profile(activities=[CPU, CUDA], with_stack=True)` → Chrome JSON + TensorBoard
+- **torch_xla:** `torch_xla.debug.profiler.trace(log_dir)` → same as JAX path
+- Output: `results/run_logs/<run_id>/profiles/<model>_<precision>.pb`
+
+---
+
+## 10. Staged Repository Build Plan
+
+Each stage is independently runnable and produces real benchmark data.
 
 ```
-tpu-gpu-inference-bench/
-├── benchmarks/
-│   ├── harness.py              # CLI entry: --model --suite --device --framework
-│   ├── runner.py               # 1 experiment → metrics dict
-│   ├── models/
-│   │   ├── registry.yaml       # all 45 models: HF ID, input spec, bs limits
-│   │   ├── jax/                # Flax (Path 1 TPU + Path 2 GPU)
-│   │   │   ├── vision.py
-│   │   │   ├── nlp_encoder.py
-│   │   │   ├── nlp_decoder.py
-│   │   │   ├── audio.py
-│   │   │   └── multimodal.py
-│   │   └── torch/              # PyTorch (Path 3 GPU + Path 4 torch_xla TPU)
-│   │       ├── vision.py
-│   │       ├── nlp_encoder.py
-│   │       ├── nlp_decoder.py
-│   │       ├── audio.py
-│   │       └── multimodal.py
-│   ├── variants/
-│   │   ├── precision.py
-│   │   ├── pruning.py
-│   │   └── compile.py
-│   └── profiler/
-│       ├── jax_profiler.py
-│       ├── torch_profiler.py
-│       ├── roofline.py
-│       └── metrics.py
-├── configs/
-│   ├── hardware.yaml           # peak FLOPs, BW, memory per device
-│   └── suites/
-│       ├── smoke.yaml
-│       ├── quick.yaml
-│       ├── domain.yaml
-│       ├── arch.yaml
-│       └── full.yaml
-├── results/
-│   ├── runs.jsonl
-│   └── dashboard/
-│       ├── index.html
-│       └── views/
-│           ├── roofline.html
-│           ├── throughput.html
-│           ├── latency.html
-│           ├── compiler.html
-│           ├── precision.html
-│           └── architecture.html
-└── scripts/
-    ├── cache_models_gcs.sh
-    ├── provision_tpu.sh
-    ├── run_suite.sh
-    ├── teardown_tpu.sh
-    └── sync_github.sh
+Stage 1 — Foundation                          Target: 1 day
+  Files: harness.py, runner.py
+         models/registry.yaml (5 models)
+         observe/lineage.py, observe/stats.py
+         results/dashboard/index.html (table only)
+  Paths: Path 1 (JAX+TPU) only
+  Output: first rows in runs.jsonl, working table dashboard
+
+Stage 2 — Multi-path + GPU                    Target: 2 days
+  Files: models/jax/*, models/torch/*
+         observe/system_monitor.py
+  Paths: Add Path 2 (JAX+GPU) and Path 3 (PyTorch+GPU)
+  Models: expand to 15
+  Dashboard: throughput heatmap, latency chart
+
+Stage 3 — Profiler + Roofline                 Target: 2 days
+  Files: observe/flops_counter.py
+         observe/tracer.py
+         observe/memory_profiler.py
+         results/dashboard/views/roofline.html
+  Adds: flops_per_sample, arithmetic_intensity, mfu_pct to schema
+
+Stage 4 — torch_xla (Path 4)                  Target: 1 day
+  Files: models/torch/xla_wrapper.py
+  Dashboard: compiler comparison view (Path 1 vs 4, Path 3 vs 4)
+
+Stage 5 — Novel Architectures                 Target: 2 days
+  Files: variants/compile.py
+  Models: Mamba, RWKV, RecurrentGemma, DiT — the "aha moment" models
+  Dashboard: architecture-hardware fit view
+
+Stage 6 — Precision + Quantization            Target: 2 days
+  Files: variants/precision.py (INT8, FP8)
+         observe/numerics.py
+  Models: add Qwen, DeepSeek, Phi, Gemma-3
+  Dashboard: precision speedup view
+
+Stage 7 — HF Inference API (Path 5)           Target: 1 day
+  Files: paths/hf_api.py
+  Dashboard: TCO calculator
+
+Stage 8 — Sparsity + Pruning                  Target: 1 day
+  Files: variants/pruning.py
+  Dashboard: sparsity impact view
+
+Stage 9 — Full Registry + Automation          Target: ongoing
+  Files: .github/workflows/bench.yml (scheduled runs)
+         scripts/run_suite.sh with auto-push
+  Models: all ~75
+  Dashboard: full interactive explorer with claim → evidence links
 ```
 
 ---
 
-## Learning Arcs (Strategic)
+## 11. Visualisation Plan
 
-See strategy discussion in conversation for full detail. Seven arcs:
+### Layer 1 — Static GitHub Pages Dashboard
+Built with Vega-Lite, reads `results/runs.jsonl` via `fetch()`.
 
-1. **Hardware DNA** — silicon-level roofline, memory BW vs compute ceilings
-2. **The Compiler is the Hardware** — XLA fusion vs CUDA graphs vs torch.compile
-3. **Architecture-Hardware Fit** — which model designs love which chips
-4. **The Precision Story** — BF16 is not just half the bits on TPU
-5. **Beyond Transformers** — SSMs, MoE, Diffusion, Detection
-6. **The Ecosystem** — framework overhead, tooling, debugging cost
-7. **Real-world TCO** — combining all metrics into cost/quality
+| View | Chart type | Primary claim it evidences |
+|------|-----------|---------------------------|
+| `throughput.html` | Heatmap: model × device | Who wins at what |
+| `latency.html` | Box plot + CDF per device | Tail latency behaviour |
+| `roofline.html` | Scatter: intensity vs TFLOPs, roofline overlaid | Why they win (compute vs memory bound) |
+| `compiler.html` | Bar: compile time + speedup ratio | Hidden first-run cost |
+| `precision.html` | Grouped bar: BF16/FP32 ratio per device | BF16 is free on TPU |
+| `sparsity.html` | Bar: dense vs pruned, per device | 2:4 story |
+| `architecture.html` | Scatter: FLOPs vs throughput, coloured by family | Architecture-hardware fit |
+| `tco.html` | Bar: cost/1k-samples all paths | Real-world TCO |
+| `numerics.html` | Scatter: L2 error vs speedup | Precision accuracy tradeoff |
+| `mfu.html` | Bar: model FLOP utilisation % per device | Hardware efficiency |
+
+### Layer 2 — Notebook Explorer (`notebooks/explore.ipynb`)
+Pandas + Plotly, reads `runs.jsonl`. Pre-built views:
+- Roofline with interactive hover
+- Batch-size scaling curves (throughput vs bs)
+- Latency CDF
+- Cross-run anomaly detector
+- Claim verifier: "Does the data support Arc X?"
+
+### Layer 3 — TensorBoard + Perfetto
+- One profile trace per model per run, stored in `results/run_logs/`
+- `tensorboard --logdir=results/run_logs/` for op breakdown
+- Perfetto (`ui.perfetto.dev`) for large traces — XLA fusion visualisation
+- GPU: torch.profiler traces in `results/run_logs/*/profiles/*.json`
 
 ---
 
-## Key "Aha Moments" Engineered by the Benchmark
+## 12. Key Claims and Their Evidence Requirements
 
-1. EfficientNet is slower than ViT on TPU despite fewer FLOPs — depthwise conv kills MXU
-2. Mamba-2.8B is faster than GPT-2-XL on GPU, slower on TPU — custom CUDA kernel story
-3. Gemma-2B is fastest 2B on TPU — hardware/software co-design pays off
-4. BF16 is free on TPU (same latency), costs ~45% overhead on GPU — key differentiator
-5. XLA compile takes 10–50× longer than torch.compile but runs faster after
-6. Unstructured 90% sparse = slower on both; 2:4 = 2× faster on GPU only
-7. DiT-XL/2 (transformer diffusion) is TPU's best diffusion story — pure matmuls
-8. RecurrentGemma-2B shows RNN hybrid: worse throughput on TPU than transformer Gemma-2B
-9. HF Inference API latency is 3–10× higher than self-hosted but zero infra
-10. ModernBERT outperforms BERT on throughput too — Flash attention helps TPU and GPU
+| Claim (Learning Arc) | Evidence needed | Tool | Schema field |
+|---------------------|----------------|------|--------------|
+| EfficientNet slower than ViT despite fewer FLOPs | FLOPs count, MXU%, throughput | flops_counter + system_monitor | flops_per_sample_G, mxu_utilization_pct |
+| Mamba faster on GPU, slower on TPU | Throughput comparison; XLA HLO dump showing fallback | tracer | throughput_mean; profile trace |
+| BF16 is free on TPU | FP32 vs BF16 latency within noise band | stats.py (need CV<5%) | latency_mean_ms ± std across precisions |
+| XLA compile 10–50× slower than torch.compile | compile_time_s on both | lineage + runner | compile_time_s |
+| 2:4 sparsity gives 2× GPU speedup | Dense vs 2:4 throughput; SM% | pruning + system_monitor | throughput_mean_samples_sec, sm_utilization_pct |
+| Gemma-2B fastest 2B on TPU | Throughput rank across all 2B models on TPU | runner | throughput_mean_samples_sec filtered |
+| TPU v5e-1 cost-per-sample competitive with 4090 | cost_per_1k across both | runner | cost_per_1k_samples_usd |
+| INT8 preserves accuracy | Output L2 vs FP32 < threshold | numerics.py | output_cosine_sim_vs_fp32 |
+
+---
+
+## 13. Cost Reference
+
+| Scenario | Cost |
+|----------|------|
+| Single experiment (~2 min) on v5e-1 preemptible | $0.012 |
+| `quick` suite (50 min) | $0.30 |
+| `full` suite (~8 hrs) | $2.88 |
+| Weekly `full` suite for 1 month | ~$12 |
+| GCS model cache (~80 GB) | $1.60/month |
+| Colab Pro | $9.99/month |
+| HF PRO (Inference API) | $9/month |
