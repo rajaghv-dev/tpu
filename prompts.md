@@ -41,3 +41,9 @@ Running record of user prompts and intent for this repo.
 **P17:** identify the lesson plan for me to understand all related terminologies and what all im supposed to understand from beginner to expert level?
 
 **P18:** just to make sure to have this single repo to understand all hardware, compiler n model inferences/quantization details in depth from various dimensions, help generate multiple artifacts
+
+**P19:** add to the lesson plan so that i can use my colab pro, and hugging face paid account, dont write any code now, only the lesson plan as md file, add from essentials to experts to understand n do more in the repo context only
+
+**P20:** create sessions and memory md files so that you can start the session later too
+
+**P21:** after your proper logical thinking or reasoning process without having to waste tokens in the next session, update github with sessions and memory md files and stop
