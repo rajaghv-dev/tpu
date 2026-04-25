@@ -35,3 +35,9 @@ Running record of user prompts and intent for this repo.
 **P14:** add qwen, deepseek, gemma, phi and all possible opensource models based on popularity, evals index, and plan your repo writing stage by stage than full at one go, make sure you better the repo by observing more results from the run n experiments so how do u logs for all those? also need to have code for better visualization and comprehension etc.
 
 **P15:** update context.md and prompts.md n my repo; and identify the gaps n possible suggestions, need full observability and traceability to build evidences for all the claims made from these experiments
+
+**P16:** dgx nvidia dell machine with 256 GB RAM, blackwell arch. fix all the gaps in context.md, and update context.md, also revisit the models list and identify what can be understood or benchmark by running those models? justify with enough facts or details for me to understand it better, im from India so can i be able to access all gpus? whats cost comparison if run it with h100 n b200 in gpu besides local experiments.
+
+**P17:** identify the lesson plan for me to understand all related terminologies and what all im supposed to understand from beginner to expert level?
+
+**P18:** just to make sure to have this single repo to understand all hardware, compiler n model inferences/quantization details in depth from various dimensions, help generate multiple artifacts
