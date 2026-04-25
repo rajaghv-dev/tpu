@@ -536,3 +536,132 @@ Pandas + Plotly, reads `runs.jsonl`. Pre-built views:
 | GCS model cache (~80 GB) | $1.60/month |
 | Colab Pro | $9.99/month |
 | HF PRO (Inference API) | $9/month |
+
+---
+
+## 14. Gaps Analysis and Remediation
+
+### 14.1 Critical Gaps (would invalidate claims if unaddressed)
+
+**Gap C1 — No actual FLOPs counter**
+The roofline scatter (arithmetic intensity vs TFLOPs) has no x-axis without measured FLOPs.
+- Claim at risk: "EfficientNet fewer FLOPs but slower on TPU"
+- Fix: `observe/flops_counter.py` — JAX: `jax.make_jaxpr()` → parse HLO; PyTorch: `fvcore.nn.FlopCountAnalysis`
+- Schema fields: `flops_per_sample_G`, `flops_breakdown_by_op_type`
+
+**Gap C2 — Single-run numbers are not evidence**
+One 50-pass block has unknown variance. "TPU is 2.3× faster" from a single run may be within noise.
+- Fix: minimum 3 independent cold runs per experiment; report mean ± std; t-test if gap <20%
+- Schema fields: `latency_std_ms`, `latency_cv_pct`, `n_independent_runs`
+- Rule: CV > 10% triggers `high_variance` flag; claim cannot be made from flagged run
+
+**Gap C3 — Compile cache not explicitly controlled**
+XLA compile time varies wildly between cold/warm cache. Inconsistent measurement confounds the "XLA 10–50× slower to compile" claim.
+- Fix: explicitly clear XLA persistent cache before each compile measurement; record `compile_cache_hit: bool`
+- Schema fields: `compile_cache_hit`, `first_compile_s`, `subsequent_compile_s`
+
+**Gap C4 — No thermal / clock state control**
+GPU boost clocks drop under sustained heat. A suite run on 4090 may start at 2.7 GHz, end at 2.4 GHz — an 11% confound.
+- Fix: record `gpu_clock_mhz` at start/end; flag `throttle_detected` if delta >5%; enforce 30s idle between experiments
+- Schema fields: `gpu_clock_mhz_start`, `gpu_clock_mhz_end`, `gpu_temp_c_start`, `throttle_detected`
+
+**Gap C5 — Hardware utilisation metrics not yet captured**
+`mxu_utilization_pct` and `sm_utilization_pct` are in schema but no collection code exists yet.
+- Fix: `observe/system_monitor.py` — GPU: `pynvml.nvmlDeviceGetUtilizationRates()` polled every 100ms; TPU: Cloud Monitoring API metric `tpu/container/accelerator/matrix_unit_utilization`
+- Without these, roofline is theoretical not measured
+
+### 14.2 Important Gaps (weaken evidence)
+
+**Gap I1 — No LLM prefill vs decode separation**
+`model(input_ids)` conflates prompt processing (compute-bound) and token generation (memory-bound). These are different hardware stories.
+- Fix: two sub-experiments per LLM: (a) prefill — long prompt, no KV cache; (b) decode — 1 token, warm KV cache
+- Schema fields: `inference_mode: prefill | decode | combined`
+
+**Gap I2 — Warm memory cache not controlled**
+Repeating the same input warms L2 cache, inflating throughput for memory-bound models.
+- Fix: rotate through K=4 distinct random input batches during measurement phase
+- Schema field: `input_varied: bool`
+
+**Gap I3 — MoE dynamic routing not handled**
+Phi-3.5-MoE and DeepSeek-Coder-V2-Lite use dynamic expert routing — incompatible with XLA static shapes by default.
+- Fix: record `active_params_M` vs `total_params_M`; flag if MoE fell back to dense on TPU
+- Schema fields: `active_params_M`, `moe_routing_mode: dynamic | static | dense_fallback`
+
+**Gap I4 — Cross-device input seed not enforced**
+JAX and PyTorch must generate identical synthetic inputs from the same seed for fair comparison. Currently planned but not enforced in runner.
+- Fix: runner generates numpy arrays with fixed seed, converts to JAX or torch tensor as needed
+
+**Gap I5 — XLA op fusion not measured**
+Claim "XLA fuses LayerNorm+GeLU+residual" needs a count of fusion groups in the HLO, not just a qualitative statement.
+- Fix: `observe/hlo_analyser.py` — parse `jax.xla_computation(model)(dummy)` output; count `fusion{}` nodes and kernel launches
+- Schema fields: `xla_fusion_groups`, `xla_kernel_launches`, `cuda_kernel_launches`
+
+**Gap I6 — HF Inference API conflates latency sources**
+Serverless API mixes network RTT, queue time, cold-start, and compute. Not comparable to self-hosted.
+- Fix: use Dedicated Endpoints (always warm, known hardware); record `hf_endpoint_hardware`; separate cold vs warm request
+- Schema fields: `hf_cold_latency_ms`, `hf_warm_latency_ms`, `hf_endpoint_hardware`
+
+**Gap I7 — No power / energy measurement for TCO**
+Self-hosted GPU electricity cost is real. RTX 4090 at 450W TDP, $0.12/kWh = $0.054/hr — changes break-even analysis.
+- Fix: `pynvml.nvmlDeviceGetPowerUsage()` → watts during run; compute `energy_wh_per_1k_samples`
+- Schema fields: `device_power_w`, `energy_wh_per_1k_samples`, `electricity_cost_per_1k_samples_usd`
+
+### 14.3 Nice-to-Have Gaps (add depth and completeness)
+
+**Gap N1 — No full batch-size throughput curve**
+Currently: bs=1 (latency) and bs=max (throughput). The curve from bs=1 to bs=max reveals optimal serving batch size.
+- Fix: add `bs_sweep_results: [{bs, throughput_mean, peak_memory_gb}, ...]` to schema
+- Generates a dedicated chart: "optimal batch size per device per model"
+
+**Gap N2 — No inter-run reproducibility check**
+Cannot distinguish hardware noise from bugs without running the same experiment twice and comparing.
+- Fix: `repro` suite — runs smoke × 5; reports CV across runs; fails if CV > 5%
+
+**Gap N3 — No compilation cache size tracking**
+XLA persistent cache can grow to several GB; slow-disk cache hits can still be slow.
+- Fix: record `xla_cache_size_mb`, `xla_cache_load_time_ms`
+
+**Gap N4 — No attention mechanism isolation**
+Comparing MHA vs GQA vs MQA across different models conflates architecture changes with attention changes.
+- Fix (later stage): synthetic model with swappable attention class; same size, same depth, different attention variant only
+
+### 14.4 Remediation Priority Order
+
+| Priority | Gap | Stage to fix | Effort |
+|----------|-----|-------------|--------|
+| P0 | C5: hardware utilisation collection | Stage 1 | Medium |
+| P0 | C2: multi-run statistics | Stage 1 | Low |
+| P0 | C3: compile cache discipline | Stage 1 | Low |
+| P1 | C1: FLOPs counter | Stage 3 | High |
+| P1 | C4: thermal control | Stage 2 | Low |
+| P1 | I1: prefill vs decode | Stage 2 | Medium |
+| P2 | I2: input cache control | Stage 2 | Low |
+| P2 | I5: XLA fusion measurement | Stage 3 | High |
+| P2 | I7: power measurement | Stage 3 | Medium |
+| P3 | I3: MoE handling | Stage 6 | Medium |
+| P3 | I6: HF API separation | Stage 7 | Low |
+| P4 | N1–N4 | Stages 5–9 | Various |
+
+---
+
+## 15. Evidence Chain — Traceability Map
+
+For every claim in the 7 Learning Arcs, the full evidence chain is:
+
+```
+Published claim (README / dashboard)
+  └─► Chart in dashboard (index.html: claim → chart anchor link)
+        └─► Specific run_ids cited in chart tooltip
+              └─► results/runs.jsonl rows (filter by run_id)
+                    └─► results/run_logs/<run_id>/
+                          ├── raw_timings.jsonl     every pass timing (statistical claims)
+                          ├── profiles/*.pb          profiler traces (compiler claims)
+                          ├── hlo_dump.txt           XLA HLO (fusion claims)
+                          ├── memory_timeline.json   memory claims
+                          ├── numerics.json          precision / accuracy claims
+                          ├── system_state.json      hw utilisation claims
+                          └── lineage.json           git SHA, model revision, seed
+```
+
+Every claim is reproducible: given the `run_id`, `git_sha`, `hf_model_revision`, and
+`input_seed` from `lineage.json`, any experiment can be re-run to verify the result.
