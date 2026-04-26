@@ -2,7 +2,7 @@
 
 Single-repo reference for hardware, compiler, model inference, and quantization
 benchmarking across TPU and GPU. Every claim is evidence-backed.
-Last updated: 2026-04-25
+Last updated: 2026-04-26
 
 ---
 
@@ -149,14 +149,21 @@ advantage doesn't fully compensate for price difference.
     Path 5:  HuggingFace Inference API  (serverless / dedicated endpoint)
 ```
 
-| Comparison pair | Isolates |
-|----------------|---------|
-| Path 1 vs 2 | Hardware only: TPU vs GPU, JAX/XLA held constant |
-| Path 2 vs 3 | Framework: JAX vs PyTorch, GPU and model held constant |
-| Path 1 vs 4 | Framework on TPU: JAX/XLA vs torch_xla |
-| Path 3 vs 4 | Compiler on TPU: CUDA vs XLA, PyTorch API held constant |
-| Path 1 vs 3 | Real-world: production TPU vs production GPU |
-| Path 5 vs all | Managed serving overhead vs self-hosted |
+**Direct vs Proxy comparability:** A *direct* comparison varies exactly one dimension while
+holding the rest (framework, compiler, model weights, input seed) constant — the result is
+attributable to that single variable. A *proxy* comparison varies two things by necessity
+(e.g., framework and compiler co-vary because PyTorch+CUDA on GPU vs JAX+XLA on TPU is the
+real-world choice), but one dimension is controlled by design or convention so the result is
+still meaningful. Use direct pairs for causal claims; use proxy pairs for "real world" claims.
+
+| Comparison pair | Isolates | Comparability |
+|----------------|---------|---------------|
+| Path 1 vs 2 | Hardware only: TPU vs GPU, JAX/XLA held constant | **Direct** |
+| Path 2 vs 3 | Framework: JAX vs PyTorch, GPU and model held constant | **Direct** |
+| Path 1 vs 4 | Framework on TPU: JAX/XLA vs torch_xla | **Direct** |
+| Path 3 vs 4 | Compiler on TPU: CUDA vs XLA, PyTorch API held constant | **Proxy** (compiler differs but hardware also differs — TPU vs GPU; controlled by using same PT API) |
+| Path 1 vs 3 | Real-world: production TPU vs production GPU | **Proxy** (framework + compiler + hardware all differ; controlled by using same model weights + same input seed) |
+| Path 5 vs all | Managed serving overhead vs self-hosted | **Proxy** (network + scheduling + autoscaling are bundled; controlled by warm-endpoint + identical model revision) |
 
 ---
 
@@ -165,7 +172,7 @@ advantage doesn't fully compensate for price difference.
 Each model is listed with: params, architecture family, what compute pattern it exercises,
 what specific TPU vs GPU insight it produces, and what you learn from running it.
 
-### 4.1 Vision — Classification / Feature Extraction
+### 4.1 Vision — Classification / Feature Extraction (modality: image)
 
 | Model | Params | Architecture | Primary compute | What you learn |
 |-------|--------|-------------|----------------|---------------|
@@ -180,21 +187,21 @@ what specific TPU vs GPU insight it produces, and what you learn from running it
 | **SAM-L** | 312M | ViT + prompt encoder + mask decoder | ViT encode + 2-stage decode | Two forward passes per inference (image encoder + prompt-conditioned decoder). Tests multi-pass inference overhead and intermediate activation storage. |
 | **EVA-02-L** | 307M | CLIP-pretrained ViT | Same as ViT-L | ViT variant with CLIP pretraining. Compute identical; shows that model family matters less than architecture class for hardware benchmarking. |
 
-### 4.2 Vision — Object Detection
+### 4.2 Vision — Object Detection (modality: image)
 
 | Model | Params | Architecture | What you learn |
 |-------|--------|-------------|---------------|
 | **DETR-ResNet50** | 41M | CNN backbone + Transformer decoder | End-to-end transformer detection. ResNet extracts features (conv path), transformer decoder attends to all spatial positions (attention path). Tests mixed conv+attention pipeline. |
 | **RT-DETR-L** | 32M | Hybrid encoder + transformer | Real-time DETR with efficient encoder. Shows whether architectural efficiency improvements (designed for GPU) translate equally to TPU. |
 
-### 4.3 Vision — Generative / Diffusion
+### 4.3 Vision — Generative / Diffusion (modality: image)
 
 | Model | Params | Architecture | What you learn |
 |-------|--------|-------------|---------------|
 | **DiT-XL/2** | 675M | Pure transformer (no U-Net) | Diffusion via transformer = pure matmuls. Inference = 50 denoising steps. XLA compile once, run 50× — amortises compile cost. TPU's strongest diffusion story. Compare vs SD-UNet: same quality tier, radically different hardware fit. |
 | **Stable Diffusion UNet** | 860M | U-Net + cross-attention | Conv-heavy backbone with attention at bottleneck. Cross-attention between image features and text embeddings = large batched matmul. Shows XLA fusion on skip-connection conv graphs. |
 
-### 4.4 NLP — Encoders
+### 4.4 NLP — Encoders (modality: text)
 
 | Model | Params | Architecture | What you learn |
 |-------|--------|-------------|---------------|
@@ -206,7 +213,7 @@ what specific TPU vs GPU insight it produces, and what you learn from running it
 | **E5-large-v2** | 335M | BERT-based encoder | Universal embedding. Identical compute to BGE. Running both shows run-to-run reproducibility of the benchmark. |
 | **nomic-embed-v1.5** | 137M | BERT + RoPE + Matryoshka | Uses RoPE (rotary position) instead of absolute. Matryoshka training means you can truncate output dimension at inference. Tests RoPE computation overhead vs absolute position. |
 
-### 4.5 NLP — Decoders (Autoregressive LLMs)
+### 4.5 NLP — Decoders (Autoregressive LLMs) (modality: text)
 
 Decoders have TWO distinct inference modes that must be measured separately:
 - **Prefill**: process all prompt tokens simultaneously — compute-bound, high arithmetic intensity
@@ -237,7 +244,7 @@ Decoders have TWO distinct inference modes that must be measured separately:
 | **StableLM-2-1.6B / StableLM-3B** | 1.6B/3B | LLaMA arch | Stability AI open models. Useful comparison baseline against same-size Qwen/Gemma. |
 | **MPT-7B** | 7B | ALiBi + FlashAttention | v6e-1 / B200 only. ALiBi with FlashAttention2. Tests 7B model on mid-tier TPU and high-end GPU. |
 
-### 4.6 NLP — Novel Architectures
+### 4.6 NLP — Novel Architectures (modality: text)
 
 | Model | Params | Architecture | What you learn |
 |-------|--------|-------------|---------------|
@@ -245,14 +252,14 @@ Decoders have TWO distinct inference modes that must be measured separately:
 | **Mamba2-2.7B** | 2.7B | Structured State Space (SSD) | Improved Mamba with structured state matrices. SSD allows larger matrix sizes and better GPU parallelism. Tests if Mamba2's structural improvements help TPU more than Mamba. |
 | **RWKV-4-3B** | 3B | Linear RNN (WKV attention) | O(1) memory for inference (no KV-cache growth). Token mixing via a weighted sum, not softmax attention. Sequential by nature. Tests whether O(1) memory advantage justifies sequential compute cost on TPU. |
 
-### 4.7 NLP — Code Models
+### 4.7 NLP — Code Models (modality: text/code)
 
 | Model | Params | What you learn |
 |-------|--------|---------------|
 | **StarCoder2-3B** | 3B | 16k context + fill-in-the-middle (FIM). Infill attention mask is not purely causal — tests non-standard masking on XLA. |
 | **CodeGemma-2B** | 2B | Google code model on Gemma backbone. Pairs with Gemma-2B: same architecture, different token distribution. Tests if fine-tuning domain changes hardware profile (it shouldn't, but confirms it). |
 
-### 4.8 Audio
+### 4.8 Audio (modality: audio)
 
 | Model | Params | Architecture | What you learn |
 |-------|--------|-------------|---------------|
@@ -263,7 +270,7 @@ Decoders have TWO distinct inference modes that must be measured separately:
 | **MMS-1B** | 1B | wav2vec2-based | 1000+ language support. Tests whether large vocab (softmax over 128k tokens) is bottleneck on TPU (matrix multiply at output layer). |
 | **EnCodec-24kHz** | 44M | Conv + LSTM + residual VQ | Audio neural codec. LSTM = sequential recurrence. Tests recurrent-sequential-conv hybrid on both hardware types. LSTM is small but sequential; similar story to Mamba but at tiny scale. |
 
-### 4.9 Multimodal — Vision-Language
+### 4.9 Multimodal — Vision-Language (modality: image+text [+audio for ImageBind])
 
 | Model | Params | Architecture | What you learn |
 |-------|--------|-------------|---------------|
@@ -530,6 +537,9 @@ All gaps from Section 14 are mapped to specific modules here.
 
 ## 10. Staged Build Plan (9 Stages)
 
+Each stage lists its deliverables AND its **exit criteria** — what must be true before the
+next stage begins. Exit criteria are objective and machine-verifiable wherever possible.
+
 ```
 Stage 1 — Foundation (1 day) ──────────────────────────────
   New files: benchmarks/harness.py, runner.py
@@ -539,6 +549,12 @@ Stage 1 — Foundation (1 day) ────────────────�
   Path: 1 (JAX+TPU) only
   Gaps fixed: C2 (multi-run stats), C3 (compile control)
   Output: first real rows in runs.jsonl; working table dashboard
+  Exit criteria:
+    - runs.jsonl contains ≥5 rows (one per registry model) on v5e-1
+    - CV < 10% on every latency_mean_ms claim (3 independent runs each)
+    - lineage.json populated with git_sha + hf_model_revision + input_seed
+    - results/dashboard/index.html renders correctly on GitHub Pages
+    - `smoke` suite end-to-end passes in <10 min on v5e-1
 
 Stage 2 — Multi-path + GPU (2 days) ────────────────────────
   New files: models/jax/*, models/torch/*
@@ -547,6 +563,12 @@ Stage 2 — Multi-path + GPU (2 days) ──────────────
   Models: expand to 15 (add Gemma-2B, ResNet, DINOv2, ModernBERT, PaliGemma)
   Gaps fixed: C4 (thermal control), C5 (hardware utilisation), I1 (prefill/decode), I2 (input rotation)
   Dashboard: throughput heatmap + latency chart
+  Exit criteria:
+    - Same 15 models execute on Paths 1, 2, 3 with identical input_seed
+    - mxu_utilization_pct AND sm_utilization_pct populated for every run
+    - Decode/prefill split visible for at least 1 LLM (GPT-2 XL)
+    - Thermal drift flagged when clock drops >5% — verified by stress test
+    - Heatmap chart shows ≥3 paths × 15 models = 45 cells filled
 
 Stage 3 — Profiler + Roofline (2 days) ─────────────────────
   New files: observe/flops_counter.py, observe/tracer.py
@@ -554,16 +576,31 @@ Stage 3 — Profiler + Roofline (2 days) ─────────────
              results/dashboard/views/roofline.html
   Gaps fixed: C1 (FLOPs counter), I5 (XLA fusion), I7 (power measurement)
   Adds to schema: flops_per_sample_G, arithmetic_intensity, mfu_pct, xla_fusion_groups
+  Exit criteria:
+    - flops_per_sample_G populated from BOTH JAX (jaxpr) and PyTorch (fvcore)
+    - JAX vs PyTorch FLOPs counts agree within ±5% on shared models
+    - hlo_dump.txt + parsed xla_fusion_groups present for every JAX run
+    - roofline.html scatter plot has ≥30 points and roofline line is correctly drawn
+    - Power readings (W) recorded for every GPU run
 
 Stage 4 — torch_xla Path 4 (1 day) ─────────────────────────
   New files: models/torch/xla_wrapper.py
   Gaps fixed: I6 (HF API control) — start HF API path
   Dashboard: compiler comparison (Path 1 vs 4, Path 3 vs 4)
+  Exit criteria:
+    - 5 representative models execute on Path 4 (torch_xla on TPU)
+    - Path 1 vs Path 4 throughput delta documented per model
+    - Compiler chart shows kernel-launch counts side-by-side for Paths 1/3/4
 
 Stage 5 — Novel Architectures (2 days) ─────────────────────
   New files: variants/compile.py
   Models: Mamba, RWKV, RecurrentGemma, DiT — the "aha moment" models
   Dashboard: architecture-hardware fit view, MoE penalty chart
+  Exit criteria:
+    - Mamba GPU vs TPU ratio measured; matches predicted 3–5× GPU advantage
+    - HLO inspection confirms XLA falls back to PyLoop for SSM scan
+    - DiT compile-once-run-50× amortisation visible in compile_time vs total_runtime
+    - architecture.html populated with all 5 architectural classes
 
 Stage 6 — Precision + Quantization (2 days) ────────────────
   New files: variants/precision.py (INT8, FP8, INT4 GPU)
@@ -571,19 +608,37 @@ Stage 6 — Precision + Quantization (2 days) ───────────�
   Models: add Qwen, DeepSeek, Phi-3.5-MoE, Gemma-3
   Gaps fixed: I3 (MoE handling)
   Dashboard: precision speedup, numerical accuracy scatter
+  Exit criteria:
+    - Every precision variant has output_cosine_sim_vs_fp32 recorded
+    - INT8/INT4/FP8 speedup measured on at least 5 models
+    - MoE active_params_M correctly recorded; routing mode logged
+    - Numerical accuracy scatter shows expected precision/speed tradeoff curve
 
 Stage 7 — HF Inference API Path 5 (1 day) ──────────────────
   New files: paths/hf_api.py
   Dashboard: TCO calculator; Path 5 latency breakdown
+  Exit criteria:
+    - HF API latency split into network + queue + compute components
+    - Warm vs cold endpoint latencies separately recorded
+    - tco.html produces correct cost/1k-samples for all 5 paths
 
 Stage 8 — Sparsity + Pruning (1 day) ───────────────────────
   New files: variants/pruning.py
   Dashboard: sparsity impact; 2:4 GPU advantage chart
+  Exit criteria:
+    - 2:4 sparsity GPU speedup measured ≥1.7× on at least 3 models
+    - TPU dense vs 2:4 baseline shows no speedup (confirms HW story)
+    - sparsity.html chart populated for ≥5 models × 4 sparsity variants
 
 Stage 9 — Full Registry + Automation (ongoing) ─────────────
   New files: .github/workflows/bench.yml (scheduled weekly run)
   Models: all ~75 models
   Dashboard: full interactive explorer; claim → evidence link map
+  Exit criteria:
+    - All 75 models in registry have ≥1 row in runs.jsonl
+    - Weekly CI run executes `quick` suite without manual intervention
+    - Every claim in Section 12 links to specific run_ids that evidence it
+    - Dashboard claim-verifier produces a green check on every Section-12 claim
 ```
 
 ---
@@ -692,3 +747,167 @@ re-run by anyone on the same hardware class to independently verify results.
 | Colab Pro | $9.99/month |
 | HF PRO API | $9/month |
 | B200 local = $0/hr for experiments | $0 |
+
+---
+
+## 16. Artifact Catalog
+
+The repo is a multi-artifact knowledge base. Each artifact below has a clear purpose,
+owner, and generation trigger. Treat the catalog as the source of truth for "what
+this repo produces."
+
+| Artifact | Purpose | Contents | Repo Path | Generated By |
+|----------|---------|----------|-----------|--------------|
+| **runs.jsonl** | Canonical results table; one row per experiment | Full schema (Section 8): identity, lineage, hardware, model, variant, latency/throughput/memory/compute/utilisation/numerics/cost | `results/runs.jsonl` | `runner.py` after each experiment finishes |
+| **run_logs/** | Per-run deep evidence directory | Sub-files below; one directory per `run_id` | `results/run_logs/<run_id>/` | `runner.py` (creates dir at start of each run) |
+| **raw_timings.jsonl** | Every individual pass timing for statistical re-analysis | Float ms per pass; block index; outlier flag | `results/run_logs/<run_id>/raw_timings.jsonl` | `observe/stats.py` |
+| **profiles/** | Profiler traces for compiler/op-level inspection | Perfetto / Chrome JSON / TensorBoard .pb files | `results/run_logs/<run_id>/profiles/<model>_<precision>_<path>.pb` | `observe/tracer.py` |
+| **hlo_dump.txt** | XLA HLO text for fusion / kernel-launch analysis | HLO IR + parsed fusion groups summary | `results/run_logs/<run_id>/hlo_dump.txt` | `observe/hlo_analyser.py` |
+| **memory_timeline.json** | Per-step memory snapshots during a run | Time-series of HBM/VRAM use, peak, weight vs activation vs KV-cache split | `results/run_logs/<run_id>/memory_timeline.json` | `observe/memory_profiler.py` |
+| **system_state.json** | Hardware utilisation, thermal, power, clock | Pre/post snapshots + per-second averages of MXU%/SM%/BW%/W/MHz/°C | `results/run_logs/<run_id>/system_state.json` | `observe/system_monitor.py` |
+| **numerics.json** | Numerical correctness vs FP32 reference | L2, cosine sim, max-abs error, token-level agreement (LLMs) | `results/run_logs/<run_id>/numerics.json` | `observe/numerics.py` |
+| **lineage.json** | Reproducibility metadata | git_sha, jax/torch/cuda/cudnn/tpu_runtime versions, hf_model_revision, input_seed, environment_hash | `results/run_logs/<run_id>/lineage.json` | `observe/lineage.py` |
+| **dashboard HTML** | Public-facing claim-evidence views | All views from Section 11 (throughput, latency, roofline, compiler, precision, sparsity, architecture, tco, numerics, moe, bs_sweep) | `results/dashboard/index.html` + `results/dashboard/views/*.html` | `dashboard/build.py` (post-suite) |
+| **explore notebook** | Interactive Pandas+Plotly exploration over runs.jsonl | Pre-built analyses: roofline, latency CDF, bs scaling, repro check, claim verifier | `notebooks/explore.ipynb` | Hand-authored; updated after schema changes |
+| **model registry** | Single source of truth for model list + metadata | YAML: model id, family, modality, size, hf revision, expected memory, suite tags | `models/registry.yaml` | Hand-authored; CI validates against runs.jsonl |
+| **observe modules** | Reusable observability library | system_monitor.py, flops_counter.py, stats.py, compile_controller.py, memory_profiler.py, numerics.py, lineage.py, tracer.py, hlo_analyser.py | `observe/` | Hand-authored; covered by unit tests |
+| **suites** | Named experiment-set definitions | YAML for smoke/quick/domain/arch/llm/full/repro | `suites/*.yaml` | Hand-authored |
+| **GH Actions workflow** | Scheduled CI benchmark runs | Weekly `quick` suite on v5e-1 preemptible; uploads runs.jsonl + dashboard | `.github/workflows/bench.yml` | Hand-authored (Stage 9) |
+| **lesson plan / session docs** | Continuity across sessions | LESSON_PLAN.md, SESSION.md, MEMORY.md (project-side), prompts.md | repo root | Hand-authored; updated each session |
+
+---
+
+## 17. Colab Pro + HF Workflow
+
+Colab Pro ($9.99/mo) + HF PRO ($9/mo) = the cheapest practical path to actual TPU and
+GPU runs without a cloud setup. This section is the operating manual.
+
+### 17.1 Runtime selection (Colab Pro)
+- **Runtime menu → Change runtime type:** TPU v2-8 (free with Pro), A100 (Pro budget unit cost), L4 (cheaper alternative), T4 (free). v2-8 is 8 chips of v2 — for single-chip semantics, use only `jax.devices()[0]`.
+- For our matrix:
+  - **TPU v2-8**: Path 1 surrogate (older arch, but exercises XLA + TPU pod attach)
+  - **A100 40GB**: Path 2/3 surrogate for cloud-class GPU
+  - **T4**: cheap smoke-test target; useful for code correctness only
+- Colab Pro+ unlocks longer runtimes and better GPU priority — worth it if you hit session caps weekly.
+
+### 17.2 HF token setup for gated models
+Required for: Gemma family, PaliGemma, LLaMA-3, some DeepSeek, MMS, SeamlessM4T.
+
+```python
+# Once per Colab session:
+from huggingface_hub import login
+from google.colab import userdata
+login(token=userdata.get('HF_TOKEN'))   # store HF_TOKEN once in Colab secrets
+```
+
+Steps:
+1. Create token at https://huggingface.co/settings/tokens (`read` scope is enough for gated models you've accepted).
+2. Accept each gated model's license on its HF page (one-time, per model family).
+3. Add the token to Colab Secrets (left sidebar key icon) as `HF_TOKEN`.
+4. Same token works for HF Inference API (Path 5).
+
+### 17.3 Running suites from Colab (CLI commands)
+Colab notebooks can shell out to bash with `!`. The runner is CLI-driven:
+
+```bash
+# Clone + install
+!git clone https://github.com/rajaghv-dev/tpu /content/tpu
+%cd /content/tpu
+!pip install -q -r requirements.txt
+
+# Smoke test (≤10 min — fits well under Colab cell timeouts)
+!python -m benchmarks.runner --suite smoke --device auto --out results/runs.jsonl
+
+# Quick suite (~50 min — fits in a single Colab Pro session)
+!python -m benchmarks.runner --suite quick --device auto
+
+# Single-experiment debugging
+!python -m benchmarks.runner --model bert_base --precision bf16 --bs 32 --device tpu
+```
+
+`--device auto` detects TPU vs GPU at runtime via `jax.devices()` / `torch.cuda.is_available()`.
+
+### 17.4 GCS model cache setup in Colab
+HF model downloads dominate first-run cost. Cache to GCS once, mount thereafter.
+
+```bash
+# One-time: authenticate Colab to GCP
+from google.colab import auth; auth.authenticate_user()
+
+# Mount your GCS bucket (you create it once in GCP console, ~$1.60/month for 80 GB)
+!gcsfuse --implicit-dirs my-tpu-bench-cache /content/hf_cache
+
+# Point HF at it
+import os
+os.environ['HF_HOME'] = '/content/hf_cache'
+os.environ['TRANSFORMERS_CACHE'] = '/content/hf_cache/transformers'
+```
+
+After the first run downloads weights, subsequent Colab sessions reuse them — saving
+~10–60 min of download time per model on slow days.
+
+### 17.5 Session limits and what to do about them
+Colab Pro caveats:
+- Sessions die after **~12 hours of total** runtime, or **~90 min idle**.
+- Disconnects on tab close — your kernel survives ~30 min, then dies.
+- A100/L4 access is **not guaranteed**; falls back to T4 if GPUs are saturated.
+- No native tmux. The closest equivalents:
+  - **Always write to GCS, not local disk.** `runs.jsonl` and `run_logs/` live in the mounted bucket so a disconnect loses nothing.
+  - **Make the runner resumable.** `runner.py` checks runs.jsonl for completed `(model, precision, bs, device)` tuples and skips them.
+  - **Suite the work.** Run `quick` (50 min) per session, not `full` (8 hrs).
+  - **Use `nohup`-style backgrounding inside the cell** so a tab close doesn't immediately kill it: `!nohup python -m benchmarks.runner ... > /content/hf_cache/run.log 2>&1 &` then poll the log.
+- For real long runs, switch to a GCP TPU VM with `tmux`. Colab Pro is for development and `quick` suites.
+
+### 17.6 HF Inference API setup (Path 5)
+HF PRO ($9/mo) gives higher rate limits + access to dedicated endpoints.
+
+When to use HF API vs self-hosted:
+- **Use HF API when:** you want to measure managed-serving overhead (Path 5's whole point), the model is in HF's hosted catalogue, or you want zero-setup access to a model you can't fit locally.
+- **Use self-hosted when:** you need precise compile-time control, custom precision/quantization, deterministic batch boundaries, or any of Path 1–4's level of profiler depth.
+
+```python
+from huggingface_hub import InferenceClient
+client = InferenceClient(model="google/gemma-2b", token=userdata.get('HF_TOKEN'))
+out = client.text_generation("Hello world", max_new_tokens=64)
+```
+
+For latency decomposition (Stage 7 requirement), wrap calls to capture network + queue + compute:
+- Cold endpoint: first call after idle — measures cold-start.
+- Warm endpoint: 2nd–Nth call — measures steady-state inference + network.
+- Use HF Dedicated Endpoints (paid, separate from PRO subscription) for stable warm latency
+  numbers without scheduling jitter.
+
+### 17.7 Session continuity workflow
+At session start: read `MEMORY.md` and `SESSION.md` (per project memory rules).
+At session end: append the day's run_ids and learnings to `SESSION.md`; commit `runs.jsonl`.
+
+---
+
+## 18. Open Questions
+
+Genuinely unresolved as of 2026-04-26. Each question has a specific experiment that
+would answer it; results land in `runs.jsonl` and update this section when known.
+
+1. **Will XLA's Pallas/Splash Attention close the FlashAttention2 gap at long context (>8k tokens)?**
+   - Test plan: ModernBERT-large + Phi-3.5-mini-128k at seq_len ∈ {2048, 8192, 32768} on Path 1 vs Path 3.
+   - Resolves: whether TPU is competitive on long-context inference, or whether the FA2 CUDA kernel remains structurally ahead.
+
+2. **Can MoE routing be made static-shape-compatible in JAX without full expert materialisation?**
+   - Test plan: Phi-3.5-MoE and DeepSeek-Coder-V2-Lite on Path 1 with three routing strategies (full materialisation, padded top-k, capacity-factor variant).
+   - Resolves: how much of the MoE penalty on TPU is fundamental vs solvable with smarter routing kernels.
+
+3. **Does B200's FP8 give >2× over BF16 on memory-bound decode, or does bandwidth ceiling dominate?**
+   - Test plan: Llama-3.2-3B + DeepSeek-R1-Distill-Qwen-7B in BF16 vs FP8 on B200 at decode (1 token, KV warm).
+   - Resolves: whether FP8's compute advantage matters for decode (memory-bound) or only for prefill (compute-bound).
+
+4. **At what batch size does v6e-1 TPU match H100 SXM5 on BERT throughput?**
+   - Test plan: BERT-base bs sweep {1, 2, 4, ..., 1024} on v6e-1 vs H100. Crossover point becomes the practical "TPU-wins-from-here" line for this class.
+   - Resolves: whether TPU's higher-batch advantage starts at bs=128 (folklore) or earlier/later in reality.
+
+5. **Is the RWKV sequential compute disadvantage on TPU worse than Mamba, or does WKV's simpler recurrence help?**
+   - Test plan: RWKV-4-3B vs Mamba-2.8B on Path 1 (TPU) vs Path 3 (GPU); compare relative slowdown ratios.
+   - Resolves: whether recurrence simplicity (RWKV) compensates for lacking a custom CUDA kernel relative to Mamba's selective_scan_cuda.
+
+6. **(Open, lower priority)** Does PaliGemma's TPU advantage survive when you swap its connector to a non-Google MLP? — isolates "co-design" from "good architecture."
+
+7. **(Open, lower priority)** Do Colab Pro v2-8 results predict v5e-1 results within 20%? — would let us use Colab as a cheap pre-flight check before spending v5e-1 hours.
