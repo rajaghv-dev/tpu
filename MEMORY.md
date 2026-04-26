@@ -169,6 +169,16 @@ N1(bs sweep)→Stage2, N2(repro suite)→Stage1, N3(cache size)→Stage3
 
 ---
 
+## KEY DOCS (new 2026-04-26)
+
+DECISIONS.md  — 13 ADRs with full rationale, alternatives, risks, revisit triggers
+RISKS.md      — Risk register: R-T (technical), R-M (measurement), R-C (cost), R-I (infra), R-L (learning)
+QUESTIONS.md  — 23 open questions across 5 domains with expected answers and test plans
+RECOMMENDATIONS.md — Tier 1/2/3 prioritized actions with effort estimates
+prompts.md    — P22-P40 added: Stage 1 build, observability, debugging, validation prompts
+
+---
+
 ## STAGED BUILD PLAN — STATUS
 
 Stage 1: Foundation (harness.py, runner.py, 5 models, Path 1, table dashboard) — NOT STARTED ← NEXT
