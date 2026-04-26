@@ -22,6 +22,100 @@ Modules 5–9 are intermediate (week 2). Modules 10–15 are advanced/expert (we
 
 ---
 
+## Module 0 — How This Repo Is Organised and Why
+
+**What you will understand:**
+The reasoning behind every structural decision in this repo, so you can navigate it intelligently rather than treating it as a black box.
+
+### 0.1 The Five Knowledge Documents
+
+This repo has five strategic reference documents. Read them in this order when starting:
+
+| Document | What it answers | When to read |
+|----------|----------------|--------------|
+| `MEMORY.md` | Dense 3-minute summary of everything: hardware, paths, models, next task | **First thing every session** |
+| `SESSION.md` | Full project state: decisions made, files built, what's next | After MEMORY.md |
+| `DECISIONS.md` | Why every architectural choice was made (13 ADRs) | When you wonder "why did we choose X?" |
+| `RISKS.md` | What can go wrong and how to prevent it (25+ risks) | Before starting a new stage |
+| `QUESTIONS.md` | Open research questions with test plans (23 questions) | When designing an experiment |
+| `RECOMMENDATIONS.md` | Prioritized actions in 3 tiers | When deciding what to do next |
+
+### 0.2 The 13 Architectural Decisions (ADRs)
+
+These choices are locked — they were made deliberately. Understanding *why* they were made helps you understand the entire repo design:
+
+| ADR | Decision | The short reason |
+|-----|----------|-----------------|
+| ADR-001 | Inference-only | Training doesn't fit 1–3 min budget; inference teaches the same hardware concepts |
+| ADR-002 | JAX AND PyTorch | Compiler comparison is a primary goal; you can't compare XLA vs Inductor with one framework |
+| ADR-003 | v5e-1 preemptible primary | $0.36/hr, 16GB matches RTX 3080, single-chip VM, no pod management |
+| ADR-004 | Synthetic inputs (seed=42) | No data download, full reproducibility, hardware-only comparison |
+| ADR-005 | HF pretrained weights | Real weights give realistic compute patterns; random init is misleading |
+| ADR-006 | GCS model cache | Download once to GCS; reuse across preemptible VM restarts; free egress within us-central1 |
+| ADR-007 | Append-only JSONL | Simple, grep-able, version-controllable, no schema migrations |
+| ADR-008 | Static HTML + Vega-Lite | Zero server cost, works on GitHub Pages, no build step |
+| ADR-009 | n=3 runs, CV<10% | Evidence-grade measurements; distinguishes real differences from noise |
+| ADR-010 | Sequential single experiments | Colab-compatible; no parallel complexity; 1–3 min per run |
+| ADR-011 | 9-stage incremental build | Each stage informed by results from previous; avoids building wrong thing |
+| ADR-012 | 75 models, ≤4B params | v5e-1 has 16GB; 4B BF16 = ~8GB weights; leaves room for KV-cache |
+| ADR-013 | MoE/SSM included | Maximum learning value despite XLA challenges; Stage 5+ |
+
+See `DECISIONS.md` for full rationale, alternatives considered, risks, and revisit triggers.
+
+### 0.3 The Framework Hierarchy
+
+When working with this repo, always know what layer you're at:
+
+```
+You (Python, prompts.md)
+    ↓
+Framework (JAX or PyTorch)          ← Examples 01–08, benchmarks/
+    ↓
+Compiler (XLA or Inductor/CUDA)     ← observe/compile_controller.py, hlo_analyser.py
+    ↓
+Hardware (TPU or GPU)               ← context.md Section 2, DECISIONS.md ADR-003
+    ↓
+Results (runs.jsonl, dashboard)     ← results/, QUESTIONS.md, RECOMMENDATIONS.md
+```
+
+A confusion about "why is this slow?" almost always means you're reasoning at the wrong layer. Is it the Python code? The framework tracing? The compiler? The hardware? Each has different diagnostic tools.
+
+### 0.4 How to Use prompts.md
+
+`prompts.md` is a complete history of how this repo was built. It serves three purposes:
+1. **Raw prompts** (bottom section): verbatim record of what was asked — useful to understand the original intent
+2. **Improved prompts** (top section): well-engineered versions — use these as templates when asking similar questions
+3. **Standing Instructions** (very top): rules that apply to every session automatically
+
+When you start a new session and want to pick up where we left off, the standing instructions eliminate the need to repeat setup context.
+
+### 0.5 Terminology Cross-Reference
+
+Quick lookup — which module defines each term:
+
+| Term | Module |
+|------|--------|
+| Roofline, arithmetic intensity, ridge point | Module 3 |
+| JAX, jit, pmap, XLA, HLO | Module 4 |
+| Operator fusion, kernel, cuDNN | Module 4, 8 |
+| MFU, CV, throughput, latency, OOM | Module 7 |
+| Profiler trace, Perfetto, fusion groups | Module 8 |
+| MXU, Tensor Core, systolic array | Module 2 |
+| MHA, GQA, MQA, KV-cache, RoPE | Module 9 |
+| BF16, INT8, FP8, GPTQ, AWQ | Module 10 |
+| Prefill, decode, TTFT, TPOT | Module 11 |
+| 2:4 sparsity, Sparse Tensor Cores | Module 12 |
+| Lineage, reproducibility, evidence chain | Module 13 |
+| TCO, cost/1k samples, break-even | Module 14 |
+
+**Self-check (Module 0):**
+- Why did we choose JAX AND PyTorch instead of just one? (See ADR-002)
+- What is the difference between `DECISIONS.md` and `RECOMMENDATIONS.md`?
+- If someone asks "why is inference only?", which ADR number do you reference?
+- What is the first thing to read at the start of every session?
+
+---
+
 ## Prerequisites (Before Module 1)
 
 No hardware or ML knowledge needed, but you should be comfortable with:

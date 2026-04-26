@@ -74,6 +74,16 @@ Single repo to understand and benchmark inference across:
 
 **Not yet built (benchmarks/ harness):** Stage 1 of 9 is next coding task.
 
+**Session 2 additions (2026-04-26):**
+- prompts.md: P1–P21 Opus-rewritten; P22–P47 added; Standing Instructions section; Session 2 raw prompts recorded
+- context.md: §16 Artifact Catalog, §17 Colab Pro+HF Workflow, §18 Open Questions, comparability column, exit criteria per stage
+- All 8 example READMEs: hardware context, real metrics, "What to observe", benchmark connections
+- DECISIONS.md (new): 13 ADRs with full rationale, alternatives, risks, revisit triggers
+- RISKS.md (new): 25+ risks across 5 categories with mitigation + contingency
+- QUESTIONS.md (new): 23 open questions with expected answers and test plans
+- RECOMMENDATIONS.md (new): 22+ recommendations in 3 tiers with effort estimates
+- LESSON_PLAN.md: Module 0 added (repo organisation, ADR table, framework hierarchy, terminology index)
+
 ---
 
 ## Committed but Not Yet Pushed in This Session
