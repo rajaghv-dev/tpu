@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TPU × GPU Inference Benchmark — Stage 1 Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2d3142;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --accent: #4f9cf9;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --ok: #22c55e;
+      --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 { font-size: 18px; font-weight: 600; }
+    header .sub { color: var(--muted); font-size: 12px; }
+
+    .controls {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .controls label { color: var(--muted); font-size: 12px; }
+
+    select, input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .stats-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .stat { display: flex; flex-direction: column; }
+    .stat-value { font-size: 20px; font-weight: 600; font-family: var(--font); }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .table-wrap {
+      overflow-x: auto;
+      padding: 16px 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-family: var(--font);
+    }
+
+    th {
+      background: var(--surface);
+      color: var(--muted);
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    th:hover { color: var(--accent); }
+    th.asc::after  { content: ' ↑'; }
+    th.desc::after { content: ' ↓'; }
+
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tr:hover td { background: var(--surface); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-warn   { background: #451a00; color: var(--warn); }
+    .badge-ok     { background: #052e16; color: var(--ok); }
+    .badge-muted  { background: var(--border); color: var(--muted); }
+    .badge-accent { background: #172554; color: var(--accent); }
+
+    .numeric { text-align: right; }
+
+    .empty {
+      text-align: center;
+      padding: 80px 24px;
+      color: var(--muted);
+    }
+
+    .empty h2 { font-size: 20px; margin-bottom: 12px; }
+    .empty code {
+      background: var(--surface);
+      padding: 12px 20px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 16px;
+      font-family: var(--font);
+      font-size: 13px;
+      border: 1px solid var(--border);
+    }
+
+    footer {
+      padding: 24px;
+      color: var(--muted);
+      font-size: 11px;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>TPU × GPU Inference Benchmark</h1>
+  <span class="sub">Stage 1 · Path 1 (JAX + XLA) · results/runs.jsonl</span>
+</header>
+
+<div class="controls">
+  <label>Filter:</label>
+  <input type="text" id="filterInput" placeholder="model, domain, device…" style="width:220px">
+
+  <label>Domain:</label>
+  <select id="domainSelect"><option value="">All</option></select>
+
+  <label>Device:</label>
+  <select id="deviceSelect"><option value="">All</option></select>
+
+  <label>Precision:</label>
+  <select id="precisionSelect"><option value="">All</option></select>
+
+  <label>Sort by:</label>
+  <select id="sortSelect">
+    <option value="timestamp_desc">Newest first</option>
+    <option value="latency_p50_ms_asc">Latency p50 ↑</option>
+    <option value="throughput_mean_samples_sec_desc">Throughput ↓</option>
+    <option value="latency_cv_pct_asc">CV ↑ (most stable)</option>
+    <option value="first_compile_s_asc">Compile time ↑</option>
+  </select>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat"><span class="stat-value" id="statTotal">—</span><span class="stat-label">Experiments</span></div>
+  <div class="stat"><span class="stat-value" id="statModels">—</span><span class="stat-label">Models</span></div>
+  <div class="stat"><span class="stat-value" id="statAvgLat">—</span><span class="stat-label">Avg p50 (ms)</span></div>
+  <div class="stat"><span class="stat-value" id="statAvgTp">—</span><span class="stat-label">Avg Throughput</span></div>
+  <div class="stat"><span class="stat-value" id="statFlags">—</span><span class="stat-label">Flagged</span></div>
+</div>
+
+<div class="table-wrap" id="tableWrap">
+  <div class="empty" id="emptyState">
+    <h2>No results yet</h2>
+    <p>Run the benchmark harness to generate data:</p>
+    <code>python benchmarks/harness.py --suite smoke --device tpu</code>
+    <br><br>
+    <p>Results will appear here automatically.</p>
+  </div>
+</div>
+
+<footer>
+  Data source: <code>results/runs.jsonl</code> ·
+  Repo: <a href="https://github.com/rajaghv-dev/tpu" style="color:var(--accent)">rajaghv-dev/tpu</a> ·
+  Refresh to reload · Stage 1 (JAX + XLA, Path 1)
+</footer>
+
+<script>
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+let allRows = [];
+let filtered = [];
+let sortKey = 'timestamp';
+let sortDir = 'desc';
+
+async function loadData() {
+  try {
+    const resp = await fetch('../runs.jsonl');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    allRows = text.trim().split('\n')
+      .filter(l => l.trim())
+      .map(l => JSON.parse(l));
+    return true;
+  } catch (e) {
+    // Try relative path (served directly from results/)
+    try {
+      const resp2 = await fetch('runs.jsonl');
+      if (!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
+      const text = await resp2.text();
+      allRows = text.trim().split('\n')
+        .filter(l => l.trim())
+        .map(l => JSON.parse(l));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+// ── Filter controls ───────────────────────────────────────────────────────────
+
+function populateDropdowns() {
+  const domains    = [...new Set(allRows.map(r => r.domain).filter(Boolean))].sort();
+  const devices    = [...new Set(allRows.map(r => r.device).filter(Boolean))].sort();
+  const precisions = [...new Set(allRows.map(r => r.precision).filter(Boolean))].sort();
+
+  function fill(selectId, values) {
+    const sel = document.getElementById(selectId);
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  }
+  fill('domainSelect', domains);
+  fill('deviceSelect', devices);
+  fill('precisionSelect', precisions);
+}
+
+function applyFilters() {
+  const text      = document.getElementById('filterInput').value.toLowerCase();
+  const domain    = document.getElementById('domainSelect').value;
+  const device    = document.getElementById('deviceSelect').value;
+  const precision = document.getElementById('precisionSelect').value;
+  const sortVal   = document.getElementById('sortSelect').value;
+
+  const [sk, sd] = sortVal.includes('_')
+    ? sortVal.match(/^(.+)_(asc|desc)$/).slice(1)
+    : ['timestamp', 'desc'];
+
+  filtered = allRows.filter(r => {
+    if (domain    && r.domain    !== domain)    return false;
+    if (device    && r.device    !== device)    return false;
+    if (precision && r.precision !== precision) return false;
+    if (text) {
+      const hay = JSON.stringify(r).toLowerCase();
+      if (!hay.includes(text)) return false;
+    }
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    let va = a[sk] ?? (sd === 'asc' ? Infinity : -Infinity);
+    let vb = b[sk] ?? (sd === 'asc' ? Infinity : -Infinity);
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sd === 'asc' ? -1 :  1;
+    if (va > vb) return sd === 'asc' ?  1 : -1;
+    return 0;
+  });
+
+  renderTable();
+  renderStats();
+}
+
+// ── Stats bar ─────────────────────────────────────────────────────────────────
+
+function renderStats() {
+  document.getElementById('statTotal').textContent = filtered.length;
+  const models = new Set(filtered.map(r => r.model)).size;
+  document.getElementById('statModels').textContent = models;
+
+  const lats = filtered.map(r => r.latency_p50_ms).filter(v => v != null && v > 0);
+  document.getElementById('statAvgLat').textContent =
+    lats.length ? (lats.reduce((a, b) => a + b, 0) / lats.length).toFixed(1) : '—';
+
+  const tps = filtered.map(r => r.throughput_mean_samples_sec).filter(v => v != null && v > 0);
+  document.getElementById('statAvgTp').textContent =
+    tps.length ? Math.round(tps.reduce((a, b) => a + b, 0) / tps.length).toLocaleString() : '—';
+
+  const flagged = filtered.filter(r => r.flags && r.flags.length > 0).length;
+  document.getElementById('statFlags').textContent = flagged;
+}
+
+// ── Table rendering ───────────────────────────────────────────────────────────
+
+const COLS = [
+  { key: 'model',                     label: 'Model',        fmt: v => v || '—' },
+  { key: 'domain',                    label: 'Domain',       fmt: v => badge(v, 'muted') },
+  { key: 'device',                    label: 'Device',       fmt: v => badge(v, 'accent') },
+  { key: 'precision',                 label: 'Prec',         fmt: v => badge(v, 'muted') },
+  { key: 'total_params_M',            label: 'Params M',     fmt: v => v != null ? v + 'M' : '—', num: true },
+  { key: 'first_compile_s',           label: 'Compile (s)',  fmt: v => v != null ? v.toFixed(1) : '—', num: true },
+  { key: 'latency_p50_ms',            label: 'p50 (ms)',     fmt: v => v != null ? v.toFixed(2) : '—', num: true },
+  { key: 'latency_p95_ms',            label: 'p95 (ms)',     fmt: v => v != null ? v.toFixed(2) : '—', num: true },
+  { key: 'latency_cv_pct',            label: 'CV %',         fmt: cvFmt, num: true },
+  { key: 'throughput_mean_samples_sec', label: 'Samp/s',    fmt: v => v != null ? Math.round(v).toLocaleString() : '—', num: true },
+  { key: 'cost_per_1k_samples_usd',   label: '$/1k',        fmt: v => v != null ? '$' + v.toExponential(2) : '—', num: true },
+  { key: 'flags',                     label: 'Flags',        fmt: flagsFmt },
+  { key: 'timestamp',                 label: 'Time',         fmt: v => v ? v.slice(0, 16).replace('T', ' ') : '—' },
+];
+
+function badge(v, type) {
+  return `<span class="badge badge-${type}">${v || '—'}</span>`;
+}
+
+function cvFmt(v) {
+  if (v == null) return '—';
+  const cls = v >= 10 ? 'warn' : 'ok';
+  return `<span class="badge badge-${cls}">${v.toFixed(1)}%</span>`;
+}
+
+function flagsFmt(v) {
+  if (!v || v.length === 0) return '<span class="badge badge-ok">✓</span>';
+  return v.map(f => `<span class="badge badge-warn">${f}</span>`).join(' ');
+}
+
+function renderTable() {
+  const wrap = document.getElementById('tableWrap');
+
+  if (filtered.length === 0 && allRows.length === 0) {
+    wrap.innerHTML = document.getElementById('emptyState').outerHTML;
+    return;
+  }
+
+  if (filtered.length === 0) {
+    wrap.innerHTML = `<div class="empty"><h2>No matching results</h2>
+      <p>Adjust filters above.</p></div>`;
+    return;
+  }
+
+  const header = `<tr>${COLS.map(c =>
+    `<th data-key="${c.key}">${c.label}</th>`
+  ).join('')}</tr>`;
+
+  const rows = filtered.map(r => {
+    const cells = COLS.map(c => {
+      const raw = r[c.key];
+      const rendered = c.fmt(raw);
+      return `<td class="${c.num ? 'numeric' : ''}">${rendered}</td>`;
+    }).join('');
+    return `<tr title="${escHtml(r.run_id || '')}">${cells}</tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+
+  // Re-attach sort handlers
+  wrap.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.dataset.key;
+      if (sortKey === k) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortKey = k;
+        sortDir = 'asc';
+      }
+      document.getElementById('sortSelect').value =
+        (sortDir === 'desc' ? `${k}_desc` : `${k}_asc`);
+      applyFilters();
+    });
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+
+['filterInput', 'domainSelect', 'deviceSelect', 'precisionSelect', 'sortSelect']
+  .forEach(id => document.getElementById(id).addEventListener('input', applyFilters));
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+(async () => {
+  await loadData();
+  if (allRows.length > 0) {
+    populateDropdowns();
+    applyFilters();
+  }
+  // Refresh every 30 seconds if user leaves the tab open during a run
+  setInterval(async () => {
+    await loadData();
+    if (allRows.length > 0) applyFilters();
+  }, 30_000);
+})();
+</script>
+</body>
+</html>

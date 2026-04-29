@@ -1,21 +1,28 @@
-# Core
+# ── JAX / XLA (Path 1 + 2) ────────────────────────────────────────────────────
 jax[tpu]>=0.4.25
 flax>=0.8.3
 optax>=0.2.2
 orbax-checkpoint>=0.6.0
 
-# Data
+# ── Data ──────────────────────────────────────────────────────────────────────
 tensorflow>=2.15.0
 tensorflow-datasets>=4.9.4
 numpy>=1.24
 
-# NLP
+# ── NLP / Vision models ───────────────────────────────────────────────────────
 transformers>=4.40.0
 sentencepiece>=0.2.0
 datasets>=2.19.0
 
-# Utilities
+# ── Benchmark harness ─────────────────────────────────────────────────────────
+pyyaml>=6.0          # registry loading
+rich>=13.7           # progress display
 tqdm>=4.66
-rich>=13.7
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
 ml-collections>=0.1.1
 tensorboard>=2.15.0
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=7.4
+pytest-cov>=4.1

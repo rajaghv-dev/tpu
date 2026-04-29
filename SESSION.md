@@ -109,7 +109,7 @@ staged but not committed. The push command is at the end of this session's work.
 
 | Stage | Description | Status |
 |-------|-------------|--------|
-| 1 | Foundation: harness.py, runner.py, 5 models, Path 1, table dashboard | **NOT STARTED** |
+| 1 | Foundation: harness.py, runner.py, 5 models, Path 1, table dashboard | **COMPLETE (2026-04-29)** |
 | 2 | Multi-path: Paths 2+3, system_monitor, 15 models, heatmap dashboard | Not started |
 | 3 | Profiler + Roofline: flops_counter, tracer, hlo_analyser | Not started |
 | 4 | torch_xla: Path 4 | Not started |
@@ -169,6 +169,26 @@ git push origin main
 ```
 
 `gh` CLI is authenticated as `rajaghv-dev`. No password prompt needed.
+
+---
+
+## Stage 1 Build — Completed 2026-04-29
+
+**Files created:**
+- `benchmarks/harness.py` — CLI: `--suite smoke/quick`, `--model`, `--dry-run`, appends to JSONL
+- `benchmarks/runner.py` — ExperimentConfig dataclass, make_synthetic_inputs, run_experiment (9 phases)
+- `models/registry.yaml` — 5 Stage 1 models: bert_base, vit_b16, gpt2, whisper_base, clip_vit_b32
+- `observe/stats.py` — MAD-based iterative outlier removal, p50/p95/p99, CV check (gap C2)
+- `observe/lineage.py` — git SHA, package versions, HF model revision, environment hash (gap C3 support)
+- `observe/compile_controller.py` — XLA cache clear, cold + warm compile timing (gap C3)
+- `results/dashboard/index.html` — static sortable HTML table dashboard (no server needed)
+- `results/runs.jsonl` — empty; populated when harness runs on TPU
+- `tests/` — 97 unit tests covering all Stage 1 modules (no JAX/GPU required)
+
+**Test status:** 97/97 pass (`pytest tests/`)
+
+**Stage 1 status:** Code complete. Harness ready to run on v5e-1.
+**Stage 2 next:** Paths 2+3, system_monitor.py, 15 models, heatmap dashboard.
 
 ---
 

@@ -1,6 +1,6 @@
 # TPU × GPU Inference Benchmark
 
-> Rigorous, reproducible inference benchmarks comparing Google TPU and NVIDIA GPU across 53 models, 4 execution paths, and 7 learning arcs.
+> Rigorous, reproducible inference benchmarks comparing Google TPU and NVIDIA GPU across 75 models, 5 execution paths, and 7 learning arcs.
 
 ---
 
@@ -21,7 +21,7 @@ Not a vague "TPUs are faster" claim. Concrete numbers, per model, per precision,
 |------|------|--------|-----------|-------------|
 | RTX 3080 | 16 GB | 760 GB/s | 119 TFLOPs | Ampere (2:4 sparsity) |
 | RTX 4090 | 24 GB | 1008 GB/s | 330 TFLOPs | Ada Lovelace (FP8) |
-| A100 SXM (DGX) | 80 GB | 2000 GB/s | 312 TFLOPs | Ampere |
+| **B200 SXM (DGX Dell)** | **192 GB HBM3e** | **4000 GB/s** | **2250 TFLOPs** | **Blackwell (6th-gen TC)** |
 
 ### Cloud TPU — Accessible Single-Chip VMs
 | TPU | HBM | Mem BW | Peak BF16 | Preemptible | Single-chip VM |
@@ -75,7 +75,72 @@ Not a vague "TPUs are faster" claim. Concrete numbers, per model, per precision,
 
 ---
 
-## Model Registry — 53 Models Across 9 Domains
+## Quick Start
+
+### Run the benchmark (Stage 1 — JAX + TPU, 5 models)
+
+```bash
+# Clone and install
+git clone https://github.com/rajaghv-dev/tpu && cd tpu
+pip install -r requirements.txt        # includes jax[tpu], transformers, pytest
+
+# Smoke test — 1 model (BERT-base), BF16, ~8 min on v5e-1
+python benchmarks/harness.py --suite smoke --device tpu
+
+# Quick suite — all 5 Stage 1 models, BF16, ~50 min on v5e-1
+python benchmarks/harness.py --suite quick --device tpu
+
+# Preview what would run (no model downloads)
+python benchmarks/harness.py --suite quick --device tpu --dry-run
+
+# Single model on local GPU
+python benchmarks/harness.py --model bert_base --device gpu
+```
+
+Results append to `results/runs.jsonl`. Dashboard at `results/dashboard/index.html`.
+
+### Run tests (no GPU/TPU needed)
+
+```bash
+pip install pytest pyyaml numpy
+pytest tests/ -v              # 97 tests across stats, lineage, registry, runner, harness
+```
+
+### Google Colab Pro
+
+```python
+# TPU runtime: Runtime → Change runtime type → TPU
+!git clone https://github.com/rajaghv-dev/tpu && cd tpu
+import os; os.environ['HF_TOKEN'] = 'your_token'   # for gated models (Gemma etc.)
+!pip install -r requirements.txt
+!python benchmarks/harness.py --suite smoke --device tpu
+```
+
+---
+
+## Benchmark Harness — Stage 1
+
+| File | Purpose |
+|------|---------|
+| `benchmarks/harness.py` | CLI entry point — suite runner, JSONL writer |
+| `benchmarks/runner.py` | Single experiment (9-phase protocol) |
+| `models/registry.yaml` | 5 Stage 1 models with full input specs |
+| `observe/stats.py` | MAD-based outlier removal, p50/p95/p99, CV check |
+| `observe/lineage.py` | Git SHA + package versions + HF model revision |
+| `observe/compile_controller.py` | XLA cache clearing, cold + warm compile timing |
+| `results/runs.jsonl` | Append-only result log (one JSON per experiment) |
+| `results/dashboard/index.html` | Static sortable/filterable table dashboard |
+| `tests/` | 97 unit tests (pytest, no GPU required) |
+
+**Stage 1 models:** BERT-base · ViT-B/16 · GPT-2 · Whisper-base · CLIP ViT-B/32
+
+**Stage 1 gaps fixed:** C2 (multi-run statistics with CV<10% check) · C3 (XLA cache cleared before every compile measurement)
+
+**Next:** Stage 2 adds Paths 2+3 (JAX+GPU, PyTorch+GPU), system_monitor.py, 15 models, heatmap dashboard.
+
+---
+
+## Model Registry — 75 Models Across 9 Domains
 
 ### Vision — Classification / Feature Extraction (10 models)
 | Model | Params | Architecture | Key benchmark story |

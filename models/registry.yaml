@@ -1,0 +1,81 @@
+# Stage 1 model registry — 5 foundation models for Path 1 (JAX + XLA)
+# Each entry provides everything the runner needs: HF id, input spec, task.
+
+models:
+
+  - id: bert_base
+    hf_id: bert-base-uncased
+    task: sequence-classification
+    domain: nlp_encoder
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    total_params_M: 110
+    active_params_M: 110
+    input_type: text
+    vocab_size: 30522
+    default_seq_len: 128
+    default_batch_size_throughput: 64
+    max_seq_len: 512
+
+  - id: vit_b16
+    hf_id: google/vit-base-patch16-224
+    task: image-classification
+    domain: vision_cls
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    total_params_M: 86
+    active_params_M: 86
+    input_type: image
+    image_size: [3, 224, 224]
+    default_batch_size_throughput: 32
+
+  - id: gpt2
+    hf_id: gpt2
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    total_params_M: 117
+    active_params_M: 117
+    input_type: text
+    vocab_size: 50257
+    default_seq_len: 128
+    default_batch_size_throughput: 16
+    max_seq_len: 1024
+
+  - id: whisper_base
+    hf_id: openai/whisper-base
+    task: automatic-speech-recognition
+    domain: audio
+    architecture_family: transformer_encoder_decoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    total_params_M: 74
+    active_params_M: 74
+    input_type: audio
+    n_mels: 80
+    n_frames: 3000
+    default_batch_size_throughput: 8
+
+  - id: clip_vit_b32
+    hf_id: openai/clip-vit-base-patch32
+    task: zero-shot-image-classification
+    domain: multimodal
+    architecture_family: dual_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    total_params_M: 151
+    active_params_M: 151
+    input_type: image_text
+    vocab_size: 49408
+    image_size: [3, 224, 224]
+    default_seq_len: 77
+    default_batch_size_throughput: 32

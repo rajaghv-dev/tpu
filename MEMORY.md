@@ -26,7 +26,8 @@ Style: discuss before coding. MD files for documentation. No fluff.
 
 Inference benchmark: TPU vs GPU. 75 models. 5 execution paths. 9 experiment dimensions.
 Evidence-backed. Full traceability. Beginner→expert curriculum included.
-Training examples 01–08 exist and are complete. Benchmark harness does NOT exist yet.
+Training examples 01–08 exist and are complete.
+**Stage 1 COMPLETE (2026-04-29):** benchmarks/harness.py + runner.py + observe/ + models/registry.yaml + results/dashboard/ + 97 tests.
 
 ---
 
@@ -181,8 +182,9 @@ prompts.md    — P22-P40 added: Stage 1 build, observability, debugging, valida
 
 ## STAGED BUILD PLAN — STATUS
 
-Stage 1: Foundation (harness.py, runner.py, 5 models, Path 1, table dashboard) — NOT STARTED ← NEXT
-Stage 2–9: Not started. See context.md §10 for full descriptions.
+Stage 1: Foundation (harness.py, runner.py, 5 models, Path 1, table dashboard) — **COMPLETE 2026-04-29**
+Stage 2: Multi-path (Paths 2+3, system_monitor, 15 models, heatmap) — NOT STARTED ← NEXT
+Stage 3–9: Not started. See context.md §10 for full descriptions.
 
 ---
 
