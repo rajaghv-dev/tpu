@@ -281,13 +281,20 @@ Each arc is a self-contained benchmark run that produces one durable insight.
 ## Per-Experiment Protocol (~1–3 min each)
 
 ```
-1. Compile/trace   →  1 pass    Record compile_time_s (XLA trace or torch.compile)
-2. Warmup          → 20 passes  Discard — kernels and caches stabilise
-3. Latency sweep   → 50 passes  batch_size=1  →  p50 / p95 / p99 ms
-4. Throughput run  → 50 passes  max batch_size  →  samples/sec
-5. Profile         →  5 passes  Full trace  →  op breakdown, roofline data
-6. Memory sweep    →  1 pass/bs  bs=1,2,4,8,…  →  max batch before OOM
+Phase              Passes    Purpose                                         Stage built
+─────────────────────────────────────────────────────────────────────────────────────────
+1. Pre-flight      —         Verify device reachable; record thermal state   1
+2. Compile         1         Clear XLA cache; time cold + warm compilation   1
+3. Warmup          20        Discard — kernels and caches stabilise          1
+4. Latency         3 × 100   bs=1  →  p50 / p95 / p99 ms, CV %             1
+5. Throughput      3 × 100   bs=max  →  samples/sec ± std                   1
+6. Profiler        10        Full trace  →  op breakdown, fusion groups      3
+7. Memory sweep    1/bs      bs=1,2,4,8,…  →  max batch before OOM         3
+8. Numerics        1         Compare BF16/INT8 output to FP32 ref           6
+9. Post-flight     —         Verify device still responds; detect throttle   1
 ```
+
+Stage 1 implements phases 1–5 and 9. Phases 6–8 added in Stages 3 and 6.
 
 ---
 
@@ -295,13 +302,16 @@ Each arc is a self-contained benchmark run that produces one durable insight.
 
 | Suite | Models | Variants | Experiments | Wall time | v5e-1 cost |
 |-------|--------|----------|-------------|-----------|-----------|
-| `smoke` | 1 (BERT-base) | FP32 + BF16 | 4 | ~8 min | $0.05 |
-| `quick` | 6 (1/domain) | BF16 only | 24 | ~50 min | $0.30 |
+| `smoke` | 1 (BERT-base) | BF16 | 1 | ~8 min | $0.05 |
+| `quick` | 5 (1 per domain) | BF16 | 5 | ~50 min | $0.30 |
 | `domain` | All in one domain | FP32 + BF16 | ~30 | ~60 min | $0.36 |
 | `arch` | Novel arches (Mamba, RWKV, DiT, RecurrentGemma) | BF16 | ~20 | ~40 min | $0.24 |
-| `full` | All 53 models | All variants | ~800 | ~7 hrs | $2.52 |
+| `llm` | All decoders | BF16, prefill + decode | ~60 | ~2 hrs | $0.72 |
+| `full` | All 75 models | All variants | ~800 | ~8 hrs | $2.88 |
 
-Full suite = **$2.52** on preemptible v5e-1. Can be run weekly for ~$10/month.
+Full suite = **$2.88** on preemptible v5e-1. Can be run weekly for ~$10/month.
+
+*Stage 1 (built): `smoke` and `quick`. Remaining suites added in Stages 2–9.*
 
 ---
 
@@ -317,49 +327,6 @@ All runs append to `results/runs.jsonl` (one JSON object per experiment). A stat
 - **Precision speedup** — BF16/FP32 ratio per device (should be ~1.0 on TPU, ~2.0 on GPU)
 - **Sparsity impact** — dense vs pruning variants per device
 - **TCO calculator** — cost/1k samples across all paths
-
----
-
-## Quick Start
-
-### 1. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Cache model weights (one-time, ~30 min)
-```bash
-# Downloads all models to GCS for fast VM restarts
-HUGGINGFACE_TOKEN=<your-token> ./scripts/cache_models_gcs.sh gs://your-bucket/models
-```
-
-### 3. Provision a TPU VM
-```bash
-./scripts/provision_tpu.sh tpu-bench us-central1-a v5e-1
-```
-
-### 4. Run a suite
-```bash
-# On TPU VM (Path 1 — JAX)
-python benchmarks/harness.py --suite=smoke --framework=jax --device=tpu
-
-# On local GPU (Path 3 — PyTorch)
-python benchmarks/harness.py --suite=smoke --framework=pytorch --device=gpu
-
-# Via HuggingFace API (Path 5)
-python benchmarks/harness.py --suite=smoke --framework=hf_api
-```
-
-### 5. Sync results to GitHub
-```bash
-./scripts/sync_github.sh
-```
-
-### 6. View dashboard locally
-```bash
-cd results/dashboard && python -m http.server 8080
-# open http://localhost:8080
-```
 
 ---
 
@@ -386,50 +353,65 @@ os.environ['HF_HOME'] = '/content/drive/MyDrive/hf_cache'
 ## Repository Layout
 
 ```
-tpu-gpu-inference-bench/
+tpu/                                  (github.com/rajaghv-dev/tpu)
 │
-├── 01_hello_tpu/               # Verify TPU setup (JAX)
-├── 02_mnist_classification/    # CNN + pmap — first training example
-├── 03_resnet_imagenet/         # ResNet-50 with cosine LR + checkpointing
-├── 04_bert_finetuning/         # BERT fine-tune on GLUE/SST-2
-├── 05_gpt_pretraining/         # GPT-2-scale pre-training from scratch
-├── 06_data_pipeline/           # tf.data best-practices, GCS TFRecord
-├── 07_custom_training_loop/    # Gradient accumulation, bf16, per-layer LR
-├── 08_multi_host/              # Multi-host TPU pod (jax.distributed)
+├── 01_hello_tpu/                     hello_tpu.py · README.md
+├── 02_mnist_classification/          train.py · README.md
+├── 03_resnet_imagenet/               model.py · train.py · README.md
+├── 04_bert_finetuning/               train.py · README.md
+├── 05_gpt_pretraining/               model.py · train.py · README.md
+├── 06_data_pipeline/                 pipeline.py · README.md
+├── 07_custom_training_loop/          train.py · README.md
+├── 08_multi_host/                    train.py · README.md
 │
-├── benchmarks/                 # [IN PROGRESS] Inference benchmark harness
-│   ├── harness.py              # CLI entry point
-│   ├── runner.py               # 1 experiment → metrics dict
-│   ├── models/
-│   │   ├── registry.yaml       # 53 models: HF IDs, input specs, bs limits
-│   │   ├── jax/                # Flax implementations (Path 1 + 2)
-│   │   └── torch/              # PyTorch implementations (Path 3 + 4)
-│   ├── variants/               # precision.py, pruning.py, compile.py
-│   └── profiler/               # jax_profiler.py, torch_profiler.py, roofline.py
+├── benchmarks/                       ✅ Stage 1 complete
+│   ├── harness.py                    CLI: --suite smoke/quick, --model, --dry-run
+│   └── runner.py                     9-phase experiment runner (Path 1: JAX + XLA)
 │
-├── configs/
-│   ├── hardware.yaml           # Peak FLOPs, BW, memory per device
-│   └── suites/                 # smoke / quick / domain / arch / full
+├── models/
+│   └── registry.yaml                 ✅ 5 Stage 1 models (BERT · ViT · GPT-2 · Whisper · CLIP)
+│
+├── observe/                          ✅ Stage 1 complete
+│   ├── stats.py                      MAD outlier removal · p50/p95/p99 · CV<10% check
+│   ├── lineage.py                    git SHA · package versions · HF model revision
+│   └── compile_controller.py         XLA cache clear · cold + warm compile timing
 │
 ├── results/
-│   ├── runs.jsonl              # Append-only results log
-│   └── dashboard/              # Static Vega-Lite charts
+│   ├── runs.jsonl                    Append-only benchmark results (one JSON line/experiment)
+│   └── dashboard/
+│       └── index.html                ✅ Static sortable/filterable table dashboard
+│
+├── tests/                            ✅ 97 unit tests (no JAX/GPU required)
+│   ├── conftest.py
+│   ├── test_stats.py
+│   ├── test_lineage.py
+│   ├── test_compile_controller.py
+│   ├── test_registry.py
+│   ├── test_runner.py
+│   └── test_harness.py
 │
 ├── scripts/
-│   ├── gcloud_setup.sh         # Enable APIs, set GCP project
-│   ├── provision_tpu.sh        # Create preemptible TPU VM
-│   ├── gcloud_ssh_run.sh       # Run example on remote VM
-│   ├── gcloud_upload_data.sh   # Upload data to GCS
-│   ├── gcloud_pod_run.sh       # Multi-host pod launch
-│   ├── cache_models_gcs.sh     # HuggingFace → GCS (one-time)
-│   ├── run_suite.sh            # Run suite + auto-push results
-│   ├── sync_github.sh          # Commit + push results/runs.jsonl
-│   └── teardown_tpu.sh         # Delete VM (stop billing)
+│   ├── gcloud_setup.sh               Enable GCP APIs, set project
+│   ├── provision_tpu.sh              Create preemptible v5e-1 / v6e-1 VM
+│   ├── gcloud_ssh_run.sh             SSH + run script on remote VM
+│   ├── gcloud_upload_data.sh         Upload data to GCS
+│   ├── gcloud_pod_run.sh             Multi-host TPU pod launch
+│   └── teardown_tpu.sh               Delete VM (stop billing)
 │
-├── context.md                  # Full project context and design decisions
-├── prompts.md                  # Running log of user prompts
+├── README.md                         This file
+├── MEMORY.md                         Fast session startup reference (read first)
+├── SESSION.md                        Complete project state + decisions (read second)
+├── DECISIONS.md                      13 ADRs — locked architectural decisions
+├── RISKS.md                          25+ risks with mitigations and contingencies
+├── QUESTIONS.md                      23 open research questions with test plans
+├── RECOMMENDATIONS.md                Prioritised actions in 3 tiers
+├── LESSON_PLAN.md                    15-module beginner→expert curriculum
+├── context.md                        Full project context (700+ lines)
+├── prompts.md                        All session prompts + standing instructions
 └── requirements.txt
 ```
+
+**Stage 2 will add:** `observe/system_monitor.py`, `models/jax/`, `models/torch/`, `results/dashboard/throughput.html`
 
 ---
 
@@ -438,11 +420,13 @@ tpu-gpu-inference-bench/
 | Scenario | Cost |
 |----------|------|
 | Single experiment (~2 min) on v5e-1 preemptible | $0.012 |
-| `quick` suite (50 min) | $0.30 |
-| `full` suite (~7 hrs) | $2.52 |
-| Weekly `full` suite for 1 month | ~$10 |
-| GCS model cache (~80 GB) | $1.60/month |
+| `smoke` suite (8 min, 1 model) | $0.05 |
+| `quick` suite (50 min, 5 models) | $0.30 |
+| `full` suite (~8 hrs, 75 models) | $2.88 |
+| Weekly `full` suite for 1 month | ~$12 |
+| GCS model cache (~100 GB at target) | $2.00/month |
 | Colab Pro (TPU + GPU access) | $9.99/month |
+| Local RTX 3080 / 4090 / B200 | electricity only (~$0.07/kWh in India) |
 
 ---
 
@@ -450,13 +434,22 @@ tpu-gpu-inference-bench/
 
 | Component | Status |
 |-----------|--------|
-| Training examples (01–08) | Complete |
-| gcloud scripts | Complete |
-| Benchmark harness | Designing |
-| Model registry (53 models) | Designing |
-| Profiler + roofline | Designing |
-| Results dashboard | Designing |
-| HF API path (Path 5) | Designing |
+| Training examples (01–08) | ✅ Complete |
+| gcloud scripts | ✅ Complete |
+| Benchmark harness — Stage 1 (Path 1: JAX + XLA) | ✅ Complete (2026-04-29) |
+| Model registry — 5 Stage 1 models | ✅ Complete (2026-04-29) |
+| Observe: stats, lineage, compile_controller | ✅ Complete (2026-04-29) |
+| Results dashboard — table view | ✅ Complete (2026-04-29) |
+| Unit tests (97, no GPU required) | ✅ Complete (2026-04-29) |
+| Multi-path: Paths 2+3 (JAX+GPU, PyTorch+GPU) | Stage 2 |
+| System monitor (GPU SM%, MXU%, power, thermals) | Stage 2 |
+| Profiler + FLOPs counter + roofline | Stage 3 |
+| torch_xla Path 4 | Stage 4 |
+| Novel architectures (Mamba, RWKV, DiT) | Stage 5 |
+| Precision + quantization (INT8, FP8, INT4) | Stage 6 |
+| HF Inference API path (Path 5) | Stage 7 |
+| Sparsity + pruning (2:4 structured) | Stage 8 |
+| Full 75-model registry + GitHub Actions CI | Stage 9 |
 
 ---
 

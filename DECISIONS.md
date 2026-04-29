@@ -322,7 +322,7 @@
 
 **Decision.** The repo is built in **9 staged increments**. Each stage produces a runnable, end-to-end benchmark for a strict subset of models and paths, and informs the design of the next stage.
 
-**Status.** Accepted (P14).
+**Status.** Accepted (P14). **Stage 1 delivered 2026-04-29.**
 
 **Context.** A 75-model × 5-path × multi-batch matrix built upfront is high-risk: by the time anything runs, dozens of design choices are locked in based on guesses, not measurements.
 

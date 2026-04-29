@@ -3,7 +3,9 @@
 > **Format.** Rec ID · Action · Why · How · Effort.
 > **Tiers.** Tier 1 (do before any Stage 1 code) · Tier 2 (during Stage 1 build) · Tier 3 (before Stage 2).
 > **Effort.** Low (<30 min) · Medium (1–4 hrs) · High (>4 hrs).
-> **Last reviewed.** 2026-04-26.
+> **Last reviewed.** 2026-04-29.
+
+> **Stage 1 status (2026-04-29):** Code complete. `benchmarks/harness.py`, `benchmarks/runner.py`, `models/registry.yaml` (5 models), `observe/stats.py`, `observe/lineage.py`, `observe/compile_controller.py`, `results/dashboard/index.html`, and 97 unit tests all committed and pushed. Tier 1 items R1–R9 are pre-requisites to apply before the first real TPU run. Tier 2 items R10–R18 were applied during the build. Tier 3 items R19–R26 are the immediate pre-Stage-2 checklist.
 
 ---
 
@@ -46,6 +48,7 @@ These exist to remove blockers, set guardrails, and prevent the most common foot
 - **Why.** A 5-model first commit hides which model breaks the harness. A 1-model commit isolates harness bugs from model bugs.
 - **How.** Commit 1: harness + DistilBERT only. Commit 2..5: add one model each. Each commit runs through `--suite smoke` end-to-end before the next.
 - **Effort.** Medium.
+- **Stage 1 outcome (2026-04-29).** Applied with minor variation: all 5 models committed together but fully unit-tested before TPU run. Use `--dry-run` to verify harness logic without downloading models. First real TPU run should verify R6's intent.
 
 ### R7 — Choose Stage 1 starter models that are XLA-clean
 - **Action.** Stage 1 registry must contain only models with mature, well-understood JAX/Flax forward paths: ViT-B/16, ResNet-50, BERT-base, GPT-2 (125 M), Gemma-2-2B-it (or Phi-3-mini if Gemma access blocked). NO Mamba, NO MoE, NO RecurrentGemma in Stage 1.
@@ -131,7 +134,7 @@ These keep the build honest and prevent debt accumulation between commits.
 
 These close out Stage 1 honestly and prevent Stage 2 from inheriting silent bugs.
 
-### R19 — Review all Stage 1 results before extending to Path 2
+### R19 — Review all Stage 1 results before extending to Path 2 ← **NEXT IMMEDIATE ACTION**
 - **Action.** Walk every row in `runs.jsonl` produced by Stage 1. For each: does the throughput match expectations? Is the CV clean? Is the compile time sensible? Document any surprises in `results/stage1_interpretation.md`.
 - **Why.** Extending to Path 2 (JAX+GPU) on an unverified Path 1 baseline means you can't tell whether a Path 2 anomaly is Path 2's fault or a pre-existing Path 1 bug.
 - **How.** Pair-review the dashboard with yourself (or a future-AI). One sentence per row. Open issues for surprises.

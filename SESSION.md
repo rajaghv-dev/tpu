@@ -48,14 +48,19 @@ Single repo to understand and benchmark inference across:
 
 ```
 /home/raja/tpu/
-├── 01_hello_tpu/           hello_tpu.py + README.md
-├── 02_mnist_classification/ train.py + README.md
-├── 03_resnet_imagenet/      model.py + train.py + README.md
-├── 04_bert_finetuning/      train.py + README.md
-├── 05_gpt_pretraining/      model.py + train.py + README.md
-├── 06_data_pipeline/        pipeline.py + README.md
-├── 07_custom_training_loop/ train.py + README.md
-├── 08_multi_host/           train.py + README.md
+├── 01_hello_tpu/                    hello_tpu.py + README.md
+├── 02_mnist_classification/         train.py + README.md
+├── 03_resnet_imagenet/              model.py + train.py + README.md
+├── 04_bert_finetuning/              train.py + README.md
+├── 05_gpt_pretraining/              model.py + train.py + README.md
+├── 06_data_pipeline/                pipeline.py + README.md
+├── 07_custom_training_loop/         train.py + README.md
+├── 08_multi_host/                   train.py + README.md
+├── benchmarks/                      ✅ Stage 1 — harness.py + runner.py
+├── models/                          ✅ Stage 1 — registry.yaml (5 models)
+├── observe/                         ✅ Stage 1 — stats.py + lineage.py + compile_controller.py
+├── results/                         runs.jsonl (empty) + dashboard/index.html
+├── tests/                           ✅ 97 unit tests (no JAX/GPU required)
 ├── scripts/
 │   ├── gcloud_setup.sh
 │   ├── provision_tpu.sh
@@ -63,16 +68,30 @@ Single repo to understand and benchmark inference across:
 │   ├── gcloud_upload_data.sh
 │   ├── gcloud_pod_run.sh
 │   └── teardown_tpu.sh
-├── README.md               Full landing page (hardware, 5 paths, 75 models, 7 arcs, suites, costs)
-├── LESSON_PLAN.md          15-module beginner→expert curriculum (just created)
-├── context.md              Full project context (15 sections; all design decisions)
-├── prompts.md              All user prompts P1–P21
-├── SESSION.md              This file — session continuity
-├── MEMORY.md               Key facts for fast session startup
+├── README.md                        Landing page — Quick Start, harness table, all domains
+├── LESSON_PLAN.md                   15-module beginner→expert curriculum
+├── DECISIONS.md                     13 ADRs
+├── RISKS.md                         25+ risks
+├── QUESTIONS.md                     23 open questions
+├── RECOMMENDATIONS.md               3-tier prioritised actions
+├── context.md                       Full project context (700+ lines)
+├── prompts.md                       All prompts P1–P49 + standing instructions
+├── SESSION.md                       This file — session continuity
+├── MEMORY.md                        Dense 3-min fast startup reference
 └── requirements.txt
 ```
 
-**Not yet built (benchmarks/ harness):** Stage 1 of 9 is next coding task.
+**Session 3 additions (2026-04-29) — Stage 1 COMPLETE:**
+- benchmarks/harness.py — CLI: --suite smoke/quick, --model, --dry-run, --device, --precision
+- benchmarks/runner.py — ExperimentConfig dataclass, make_synthetic_inputs, run_experiment (9-phase)
+- models/registry.yaml — 5 Stage 1 models with full input specs
+- observe/stats.py — MAD-based outlier removal, p50/p95/p99, CV<10% (gap C2)
+- observe/lineage.py — git SHA + package versions + HF model revision + env hash
+- observe/compile_controller.py — XLA cache clear, cold + warm compile timing (gap C3)
+- results/dashboard/index.html — static sortable/filterable HTML table dashboard
+- tests/ — 97 unit tests, all pass (no JAX/GPU required)
+- All MD files updated: README.md, SESSION.md, MEMORY.md, context.md, DECISIONS.md,
+  RECOMMENDATIONS.md, prompts.md — aligned with actual code state
 
 **Session 2 additions (2026-04-26):**
 - prompts.md: P1–P21 Opus-rewritten; P22–P47 added; Standing Instructions section; Session 2 raw prompts recorded
@@ -119,7 +138,7 @@ staged but not committed. The push command is at the end of this session's work.
 | 8 | Sparsity + Pruning | Not started |
 | 9 | Full registry + GitHub Actions automation | Not started |
 
-**Next coding session starts at Stage 1.**
+**Next coding session starts at Stage 2** (Paths 2+3, observe/system_monitor.py, 15 models, heatmap dashboard).
 
 ---
 

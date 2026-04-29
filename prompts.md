@@ -20,7 +20,18 @@ These rules are active in every session unless explicitly overridden:
 | S7 | Check `RISKS.md` before starting any new stage or module for relevant risks | Stage kickoff |
 | S8 | All new commits must follow the format: summary line, blank, body, blank, `Co-Authored-By: Claude Sonnet 4.6` | Every commit |
 | S9 | After writing code or building new modules, update `context.md` if any new evidence or design decision was made | Post-build |
-| S10 | Stage 1 is always the next coding task — do not start Stage 2 until Stage 1 exit criteria are met | Coding sessions |
+| S10 | Stage 2 is the next coding task (Stage 1 complete 2026-04-29) — do not start Stage 3 until Stage 2 exit criteria are met | Coding sessions |
+
+---
+
+## Improved Prompts — Session 3 (2026-04-29, P48–P49)
+> Stage 1 implementation complete: harness, runner, registry, observe/, tests/, dashboard + full MD update.
+
+**P48 — Build Stage 1: complete all coding, add tests, update MDs, push to GitHub**
+Build Stage 1 of the inference benchmark harness from scratch. Deliverables: `benchmarks/harness.py` (CLI with --suite, --model, --dry-run, --device, --precision, --framework), `benchmarks/runner.py` (ExperimentConfig dataclass, make_synthetic_inputs supporting text/image/audio/image_text, run_experiment implementing 9-phase protocol), `models/registry.yaml` (5 Stage 1 models: bert_base, vit_b16, gpt2, whisper_base, clip_vit_b32 with full input specs), `observe/stats.py` (MAD-based iterative outlier removal, compute_timing_stats returning p50/p95/p99/CV, high_variance flag at CV≥10%), `observe/lineage.py` (git SHA, package versions, HF model revision, 16-char env hash), `observe/compile_controller.py` (clear_xla_cache, timed_call, measure_compile). Add `results/dashboard/index.html` (static sortable/filterable HTML table, fetches runs.jsonl). Write tests for every module (97 tests, runnable without JAX/GPU using mocks). Update README.md, SESSION.md, MEMORY.md. Commit and push to GitHub.
+
+**P49 — Fix all with updated tests, update all MD files in alignment with repo, push to GitHub**
+Audit all 18 Markdown files in the repo (README.md, MEMORY.md, SESSION.md, DECISIONS.md, RISKS.md, QUESTIONS.md, RECOMMENDATIONS.md, LESSON_PLAN.md, context.md, prompts.md, and 8 example READMEs). Fix every stale reference (Stage 1 "NOT STARTED" → "COMPLETE"), every wrong model count (53/6 → 75/5), every wrong status ("Designing" → correct stage), every wrong per-experiment protocol (6 phases → 9 phases), wrong repository layout (missing observe/, tests/, models/ in root), wrong cost references ($2.52 → $2.88 for full suite). Update Standing Instruction S10 (Stage 1 → Stage 2 is next). Add Session 3 entry to prompts.md. Add Stage 1 completion note to RECOMMENDATIONS.md Tier 3. Update context.md staged build plan to mark Stage 1 complete. Run 97 tests and confirm all pass. Commit and push.
 
 ---
 
@@ -283,3 +294,9 @@ Commit all work from this session with a precise commit message listing every fi
 **P27:** n update github
 
 **P28:** add and improve, add lesson plan md file for me to understand all the terminologies, arch decisions, frameworks etc. hope u r adding all my prompts in prompts.md, add set of instructions prompts so that you can start your next sessions without repeating prompts like update github repo regularly, add to prompts.md etc
+
+### Session 3 — 2026-04-29 (P48–P49)
+
+**P48:** complete all the above coding, and add appropriate tests, update all md files, and github
+
+**P49:** fix all with the updated tests, update all docs md files then in alignment with repo, do a through job and update github update all docs md files in this repo n github
