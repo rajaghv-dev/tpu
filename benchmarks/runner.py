@@ -7,21 +7,34 @@ Stage 1 runs phases 1–5 and 9; phases 6–8 are scheduled for later stages.
 from __future__ import annotations
 
 import datetime
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from observe.compile_controller import clear_xla_cache, timed_call
 from observe.lineage import build_lineage
-from observe.stats import compute_timing_stats, throughput_stats
+from observe.stats import ThroughputStats, compute_timing_stats, throughput_stats
 
 # ── Measurement constants ────────────────────────────────────────────────────
 N_WARMUP = 20    # passes discarded before latency measurement
 N_MEASURE = 100  # passes per independent block
-N_BLOCKS = 3     # independent blocks (for CV check across blocks)
+N_BLOCKS = 3     # independent blocks (for CV check)
+
+
+# ── Task dispatch ─────────────────────────────────────────────────────────────
+# Single source of truth: task → ordered list of input keys for _inputs_to_args.
+# "automatic-speech-recognition" is handled separately (decoder_ids injected).
+_TASK_ARGS: Dict[str, List[str]] = {
+    "sequence-classification":        ["input_ids", "attention_mask", "token_type_ids"],
+    "image-classification":           ["pixel_values"],
+    "causal-lm":                      ["input_ids", "attention_mask"],
+    "zero-shot-image-classification": ["pixel_values", "input_ids", "attention_mask"],
+}
 
 
 # ── Experiment configuration ─────────────────────────────────────────────────
@@ -73,8 +86,8 @@ def make_synthetic_inputs(
     """
     Build a dict of synthetic numpy inputs for one forward pass.
 
-    All inputs use seed = config.input_seed for full reproducibility.
-    No real data is loaded — hardware-only comparison.
+    All inputs use config.input_seed for full reproducibility.
+    No real data is loaded — hardware-only comparison (ADR-004).
     """
     if rng is None:
         rng = np.random.default_rng(config.input_seed)
@@ -164,7 +177,6 @@ def _load_flax_model(config: ExperimentConfig) -> Tuple[Any, Any, str]:
         getattr(model, "config", None), "_commit_hash", None
     ) or "unknown"
 
-    # Cast to target precision
     if config.precision == "bf16":
         params = jax.tree_util.tree_map(
             lambda x: x.astype(jnp.bfloat16) if hasattr(x, "astype") else x,
@@ -182,8 +194,8 @@ def _build_forward_fn(model: Any, task: str) -> Callable:
     """
     Build and JIT a forward function for the given task.
 
-    Each task has different required keyword arguments; explicit signatures
-    let XLA trace each tensor separately for optimal layout decisions.
+    Explicit positional signatures let XLA trace each tensor separately
+    for optimal memory-layout decisions — prefer over **kwargs.
     """
     import jax
 
@@ -241,21 +253,22 @@ def _inputs_to_args(
     task: str,
     decoder_start_id: Optional[int] = None,
 ) -> tuple:
-    """Convert inputs dict → positional args matching _build_forward_fn signature."""
-    if task == "sequence-classification":
-        return (inputs["input_ids"], inputs["attention_mask"], inputs["token_type_ids"])
-    if task == "image-classification":
-        return (inputs["pixel_values"],)
-    if task == "causal-lm":
-        return (inputs["input_ids"], inputs["attention_mask"])
+    """
+    Convert inputs dict → positional args matching _build_forward_fn signature.
+
+    Uses _TASK_ARGS as the single source of truth for key ordering, so adding
+    a new task only requires one edit (to _TASK_ARGS + _build_forward_fn).
+    """
     if task == "automatic-speech-recognition":
         bs = inputs["input_features"].shape[0]
         tok = decoder_start_id if decoder_start_id is not None else 50258
         decoder_ids = np.full((bs, 1), tok, dtype=np.int32)
         return (inputs["input_features"], decoder_ids)
-    if task == "zero-shot-image-classification":
-        return (inputs["pixel_values"], inputs["input_ids"], inputs["attention_mask"])
-    raise ValueError(f"Unknown task: {task!r}")
+
+    if task not in _TASK_ARGS:
+        raise ValueError(f"Unknown task: {task!r}")
+
+    return tuple(inputs[k] for k in _TASK_ARGS[task])
 
 
 # ── Timing loop ───────────────────────────────────────────────────────────────
@@ -275,6 +288,29 @@ def _time_passes(
         sync_fn(out)
         timings.append((time.perf_counter() - t0) * 1000.0)
     return timings
+
+
+# ── Per-run log writer ────────────────────────────────────────────────────────
+
+def _write_run_log(run_id: str, result: dict, results_dir: str) -> None:
+    """
+    Write per-run evidence files to results_dir/run_logs/<run_id>/.
+
+    Stage 1 writes lineage.json. Later stages add profiles/, raw_timings.jsonl, etc.
+    """
+    log_dir = Path(results_dir) / "run_logs" / run_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    lineage_keys = (
+        "git_sha", "jax_version", "transformers_version",
+        "hf_model_revision", "input_seed", "environment_hash",
+    )
+    lineage = {k: result.get(k) for k in lineage_keys}
+    lineage["model"] = result.get("model")
+    lineage["precision"] = result.get("precision")
+    lineage["timestamp"] = result.get("timestamp")
+
+    (log_dir / "lineage.json").write_text(json.dumps(lineage, indent=2))
 
 
 # ── Main experiment runner ────────────────────────────────────────────────────
@@ -297,10 +333,12 @@ def run_experiment(
 
     Phases 6–8 (profiler, memory sweep, numerics) scheduled for Stage 3.
 
+    Per-run evidence written to results_dir/run_logs/<run_id>/lineage.json.
+
     Args:
         config: Full experiment specification.
-        results_dir: Where to write lineage files (future stages).
-        _loader: Optional override for model loading (testing / injection).
+        results_dir: Root for per-run log files.
+        _loader: Optional model loader override (for testing).
 
     Returns:
         Result dict matching the JSONL schema in context.md §8.
@@ -308,7 +346,7 @@ def run_experiment(
     import jax
 
     run_id = str(uuid.uuid4())
-    timestamp = datetime.datetime.utcnow().isoformat() + "Z"
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     sync = jax.block_until_ready
 
     # ── Phase 1: Pre-flight ────────────────────────────────────────────────
@@ -320,24 +358,21 @@ def run_experiment(
     else:
         model, params, hf_revision = _load_flax_model(config)
 
-    # Build JIT forward function
     forward_fn = _build_forward_fn(model, config.task)
 
-    # Decoder start token for Whisper (fixed [BOS])
     decoder_start_id: Optional[int] = None
     if config.task == "automatic-speech-recognition":
         decoder_start_id = getattr(
             getattr(model, "config", None), "decoder_start_token_id", 50258
         ) or 50258
 
-    # Build bs=1 inputs
     rng = np.random.default_rng(config.input_seed)
     inputs_bs1 = make_synthetic_inputs(config, batch_size=1, rng=rng)
     args_bs1 = _inputs_to_args(inputs_bs1, config.task, decoder_start_id)
 
     # ── Phase 2: Compile ───────────────────────────────────────────────────
     clear_xla_cache()
-    first_compile_s, out = timed_call(forward_fn, (params, *args_bs1), sync)
+    first_compile_s, _ = timed_call(forward_fn, (params, *args_bs1), sync)
     subsequent_compile_s, _ = timed_call(forward_fn, (params, *args_bs1), sync)
 
     # ── Phase 3: Warmup ────────────────────────────────────────────────────
@@ -345,7 +380,7 @@ def run_experiment(
         out = forward_fn(params, *args_bs1)
     sync(out)
 
-    # ── Phase 4: Latency (bs=1, 3 × 100 passes) ───────────────────────────
+    # ── Phase 4: Latency (bs=1, N_BLOCKS × N_MEASURE passes) ──────────────
     all_latency_ms: List[float] = []
     for blk in range(N_BLOCKS):
         blk_rng = np.random.default_rng(config.input_seed + blk)
@@ -357,7 +392,7 @@ def run_experiment(
 
     lat = compute_timing_stats(all_latency_ms)
 
-    # ── Phase 5: Throughput (bs=max, 3 × 100 passes) ──────────────────────
+    # ── Phase 5: Throughput (bs=max, N_BLOCKS × N_MEASURE passes) ─────────
     bs_tp = config.batch_size_throughput
     all_tp_ms: List[float] = []
     for blk in range(N_BLOCKS):
@@ -382,16 +417,15 @@ def run_experiment(
     )
 
     # ── Cost estimate ──────────────────────────────────────────────────────
-    total_passes = N_WARMUP + N_BLOCKS * N_MEASURE * 2
-    duration_s = (
+    total_s = (
         first_compile_s
-        + total_passes * lat.mean_ms / 1000.0
+        + N_WARMUP * lat.mean_ms / 1000.0
+        + N_BLOCKS * N_MEASURE * 2 * lat.mean_ms / 1000.0
     )
-    experiment_cost_usd = (duration_s / 3600.0) * config.device_cost_usd_per_hr
-    tp_mean = tp["throughput_mean_samples_sec"]
+    experiment_cost_usd = (total_s / 3600.0) * config.device_cost_usd_per_hr
     cost_per_1k = (
-        (config.device_cost_usd_per_hr / 3600.0) / (tp_mean / 1000.0)
-        if tp_mean > 0
+        (config.device_cost_usd_per_hr / 3600.0) / (tp.mean_samples_sec / 1000.0)
+        if tp.mean_samples_sec > 0
         else None
     )
 
@@ -399,7 +433,7 @@ def run_experiment(
     if lat.high_variance:
         flags.append("high_variance")
 
-    return {
+    result = {
         # ── Identity ──────────────────────────────────────────────────────
         "run_id": run_id,
         "timestamp": timestamp,
@@ -441,8 +475,8 @@ def run_experiment(
         "latency_p95_ms": lat.p95_ms,
         "latency_p99_ms": lat.p99_ms,
         # ── Throughput ────────────────────────────────────────────────────
-        "throughput_mean_samples_sec": tp["throughput_mean_samples_sec"],
-        "throughput_std_samples_sec": tp["throughput_std_samples_sec"],
+        "throughput_mean_samples_sec": tp.mean_samples_sec,
+        "throughput_std_samples_sec": tp.std_samples_sec,
         # ── Memory (Stage 3) ──────────────────────────────────────────────
         "peak_memory_gb": None,
         "weight_memory_gb": None,
@@ -465,3 +499,6 @@ def run_experiment(
         "experiment_cost_usd": round(experiment_cost_usd, 6),
         "cost_per_1k_samples_usd": round(cost_per_1k, 8) if cost_per_1k else None,
     }
+
+    _write_run_log(run_id, result, results_dir)
+    return result

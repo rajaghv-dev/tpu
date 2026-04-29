@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -11,10 +12,13 @@ import pytest
 yaml = pytest.importorskip("yaml")
 
 from benchmarks.harness import (
+    DEVICE_COSTS,
     SUITES,
+    append_result,
     build_config,
     filter_registry,
     load_registry,
+    run_suite,
 )
 
 _REGISTRY_PATH = Path(__file__).parent.parent / "models" / "registry.yaml"
@@ -63,7 +67,7 @@ class TestFilterRegistry:
 class TestBuildConfig:
     @pytest.fixture
     def bert_entry(self):
-        return load_registry(str(_REGISTRY_PATH))[0]  # bert_base is first
+        return load_registry(str(_REGISTRY_PATH))[0]
 
     def test_model_id_matches(self, bert_entry):
         cfg = build_config(bert_entry, precision="bf16", device="tpu")
@@ -79,7 +83,7 @@ class TestBuildConfig:
 
     def test_tpu_has_cost(self, bert_entry):
         cfg = build_config(bert_entry, precision="bf16", device="tpu")
-        assert cfg.device_cost_usd_per_hr == 0.36
+        assert cfg.device_cost_usd_per_hr == DEVICE_COSTS["tpu"]
 
     def test_local_gpu_is_free(self, bert_entry):
         cfg = build_config(bert_entry, precision="bf16", device="b200")
@@ -113,8 +117,6 @@ class TestSuiteDefinitions:
 
 class TestAppendResult:
     def test_appends_valid_json_line(self):
-        from benchmarks.harness import append_result
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             path = Path(f.name)
 
@@ -131,8 +133,6 @@ class TestAppendResult:
             path.unlink(missing_ok=True)
 
     def test_multiple_appends(self):
-        from benchmarks.harness import append_result
-
         with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             path = Path(f.name)
 
@@ -144,3 +144,80 @@ class TestAppendResult:
             assert len(lines) == 3
         finally:
             path.unlink(missing_ok=True)
+
+
+class TestRunSuiteErrorPaths:
+    """Verify that run_suite returns -1 on configuration errors."""
+
+    def test_unknown_model_returns_minus_one(self, tmp_path):
+        n = run_suite(
+            suite_name=None,
+            model_id="totally_unknown_model_xyz",
+            device="cpu",
+            framework="jax",
+            precision="bf16",
+            output_path=tmp_path / "out.jsonl",
+            registry_path=str(_REGISTRY_PATH),
+            dry_run=False,
+        )
+        assert n == -1
+
+    def test_unknown_suite_returns_minus_one(self, tmp_path):
+        n = run_suite(
+            suite_name="not_a_real_suite",
+            model_id=None,
+            device="cpu",
+            framework="jax",
+            precision="bf16",
+            output_path=tmp_path / "out.jsonl",
+            registry_path=str(_REGISTRY_PATH),
+            dry_run=False,
+        )
+        assert n == -1
+
+    def test_no_suite_no_model_returns_minus_one(self, tmp_path):
+        n = run_suite(
+            suite_name=None,
+            model_id=None,
+            device="cpu",
+            framework="jax",
+            precision="bf16",
+            output_path=tmp_path / "out.jsonl",
+            registry_path=str(_REGISTRY_PATH),
+            dry_run=False,
+        )
+        assert n == -1
+
+    def test_dry_run_returns_zero(self, tmp_path):
+        n = run_suite(
+            suite_name="smoke",
+            model_id=None,
+            device="cpu",
+            framework="jax",
+            precision="bf16",
+            output_path=tmp_path / "out.jsonl",
+            registry_path=str(_REGISTRY_PATH),
+            dry_run=True,
+        )
+        assert n == 0
+
+
+class TestMainExitCode:
+    """Verify main() exits 1 on error, 0 on success/dry-run."""
+
+    def test_dry_run_exits_zero(self):
+        from benchmarks.harness import main
+        code = main(["--suite", "smoke", "--device", "cpu", "--dry-run"])
+        assert code == 0
+
+    def test_unknown_model_exits_one(self):
+        from benchmarks.harness import main
+        code = main(["--model", "nonexistent_xyz", "--device", "cpu"])
+        assert code == 1
+
+    def test_unknown_suite_exits_one(self):
+        from benchmarks.harness import main
+        # argparse will catch unknown suite before run_suite — exits with SystemExit(2)
+        with pytest.raises(SystemExit) as exc:
+            main(["--suite", "nonexistent_suite"])
+        assert exc.value.code != 0

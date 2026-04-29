@@ -10,7 +10,8 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-# ── Helpers to install fake JAX ───────────────────────────────────────────────
+
+# ── Fake JAX installation ─────────────────────────────────────────────────────
 
 def _install_fake_jax():
     """Register a minimal fake jax module before importing runner."""
@@ -37,12 +38,13 @@ _install_fake_jax()
 
 from benchmarks.runner import (  # noqa: E402 — after fake jax installed
     ExperimentConfig,
+    _TASK_ARGS,
     _inputs_to_args,
     make_synthetic_inputs,
 )
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
+# ── Config factory ────────────────────────────────────────────────────────────
 
 def _base_config(**overrides) -> ExperimentConfig:
     defaults = dict(
@@ -68,6 +70,27 @@ def _base_config(**overrides) -> ExperimentConfig:
     )
     defaults.update(overrides)
     return ExperimentConfig(**defaults)
+
+
+# ── _TASK_ARGS consistency ────────────────────────────────────────────────────
+
+class TestTaskArgs:
+    def test_all_standard_tasks_covered(self):
+        expected = {
+            "sequence-classification",
+            "image-classification",
+            "causal-lm",
+            "zero-shot-image-classification",
+        }
+        assert set(_TASK_ARGS.keys()) == expected
+
+    def test_each_task_has_non_empty_key_list(self):
+        for task, keys in _TASK_ARGS.items():
+            assert len(keys) >= 1, f"Task {task} has empty key list"
+
+    def test_asr_not_in_task_args(self):
+        # ASR is handled separately (decoder_ids injection)
+        assert "automatic-speech-recognition" not in _TASK_ARGS
 
 
 # ── make_synthetic_inputs ─────────────────────────────────────────────────────
@@ -165,7 +188,6 @@ class TestInputsToArgs:
         inputs = make_synthetic_inputs(cfg, batch_size=2)
         args = _inputs_to_args(inputs, "automatic-speech-recognition", decoder_start_id=50258)
         assert len(args) == 2
-        # decoder_input_ids should have shape (batch, 1)
         assert args[1].shape == (2, 1)
 
     def test_clip_returns_three_arrays(self):
@@ -184,6 +206,16 @@ class TestInputsToArgs:
         with pytest.raises(ValueError, match="Unknown task"):
             _inputs_to_args(inputs, "unsupported-task")
 
+    def test_arg_order_matches_task_args_dict(self):
+        """_inputs_to_args must return args in the same order as _TASK_ARGS."""
+        cfg = _base_config(task="causal-lm", input_type="text")
+        inputs = make_synthetic_inputs(cfg, batch_size=1)
+        args = _inputs_to_args(inputs, "causal-lm")
+        expected_keys = _TASK_ARGS["causal-lm"]
+        assert len(args) == len(expected_keys)
+        for arg, key in zip(args, expected_keys):
+            assert (arg == inputs[key]).all()
+
 
 # ── ExperimentConfig ──────────────────────────────────────────────────────────
 
@@ -200,3 +232,124 @@ class TestExperimentConfig:
         cfg = _base_config(model_id="test_model", total_params_M=42)
         assert cfg.model_id == "test_model"
         assert cfg.total_params_M == 42
+
+
+# ── run_experiment integration ────────────────────────────────────────────────
+
+class TestRunExperiment:
+    """
+    Integration test for run_experiment using a mock model loader.
+
+    Patches N_WARMUP/N_MEASURE/N_BLOCKS to tiny values so the test
+    finishes in milliseconds, then verifies the result dict structure.
+    """
+
+    REQUIRED_RESULT_FIELDS = {
+        "run_id", "timestamp",
+        "git_sha", "jax_version", "hf_model_revision", "input_seed",
+        "device", "framework", "path",
+        "model", "domain", "precision",
+        "first_compile_s", "subsequent_compile_s",
+        "latency_mean_ms", "latency_std_ms", "latency_cv_pct",
+        "latency_p50_ms", "latency_p95_ms", "latency_p99_ms",
+        "throughput_mean_samples_sec", "throughput_std_samples_sec",
+        "flags", "device_cost_usd_per_hr", "experiment_cost_usd",
+    }
+
+    def _make_fake_loader(self):
+        """Return a loader that produces a callable fake model."""
+        class _FakeModel:
+            class config:
+                decoder_start_token_id = 50258
+                _commit_hash = "deadbeef"
+
+            def __init__(self):
+                self.params = {"w": np.ones((4, 4), dtype=np.float32)}
+
+            def __call__(self, **kwargs: Any):
+                return np.ones((1, 10), dtype=np.float32)
+
+        model = _FakeModel()
+        return lambda cfg: (model, model.params, "deadbeef")
+
+    def test_returns_dict_with_required_fields(self, tmp_path):
+        import benchmarks.runner as rm
+
+        loader = self._make_fake_loader()
+        cfg = _base_config(batch_size_throughput=2)
+
+        with (
+            mock.patch.object(rm, "N_WARMUP", 2),
+            mock.patch.object(rm, "N_MEASURE", 3),
+            mock.patch.object(rm, "N_BLOCKS", 2),
+        ):
+            result = rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=loader)
+
+        assert isinstance(result, dict)
+        for field in self.REQUIRED_RESULT_FIELDS:
+            assert field in result, f"Missing field in result: {field}"
+
+    def test_latency_stats_are_numeric(self, tmp_path):
+        import benchmarks.runner as rm
+
+        loader = self._make_fake_loader()
+        cfg = _base_config(batch_size_throughput=2)
+
+        with (
+            mock.patch.object(rm, "N_WARMUP", 2),
+            mock.patch.object(rm, "N_MEASURE", 3),
+            mock.patch.object(rm, "N_BLOCKS", 2),
+        ):
+            result = rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=loader)
+
+        assert isinstance(result["latency_mean_ms"], float)
+        assert isinstance(result["latency_p50_ms"], float)
+        assert result["latency_p50_ms"] <= result["latency_p99_ms"]
+        assert result["latency_cv_pct"] >= 0
+
+    def test_lineage_json_written(self, tmp_path):
+        import benchmarks.runner as rm
+
+        loader = self._make_fake_loader()
+        cfg = _base_config(batch_size_throughput=2)
+
+        with (
+            mock.patch.object(rm, "N_WARMUP", 2),
+            mock.patch.object(rm, "N_MEASURE", 3),
+            mock.patch.object(rm, "N_BLOCKS", 2),
+        ):
+            result = rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=loader)
+
+        run_id = result["run_id"]
+        lineage_path = tmp_path / "run_logs" / run_id / "lineage.json"
+        assert lineage_path.exists(), "lineage.json should be written to results_dir"
+
+    def test_flags_list_present(self, tmp_path):
+        import benchmarks.runner as rm
+
+        loader = self._make_fake_loader()
+        cfg = _base_config(batch_size_throughput=2)
+
+        with (
+            mock.patch.object(rm, "N_WARMUP", 2),
+            mock.patch.object(rm, "N_MEASURE", 3),
+            mock.patch.object(rm, "N_BLOCKS", 2),
+        ):
+            result = rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=loader)
+
+        assert isinstance(result["flags"], list)
+
+    def test_throughput_positive(self, tmp_path):
+        import benchmarks.runner as rm
+
+        loader = self._make_fake_loader()
+        cfg = _base_config(batch_size_throughput=4)
+
+        with (
+            mock.patch.object(rm, "N_WARMUP", 2),
+            mock.patch.object(rm, "N_MEASURE", 3),
+            mock.patch.object(rm, "N_BLOCKS", 2),
+        ):
+            result = rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=loader)
+
+        assert result["throughput_mean_samples_sec"] > 0

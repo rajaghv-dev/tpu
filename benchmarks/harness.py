@@ -8,8 +8,8 @@ Usage examples:
   python benchmarks/harness.py --model bert_base --device gpu --dry-run
 
 Suites:
-  smoke  — 1 model (BERT-base), BF16 only,   ~8 min on v5e-1
-  quick  — 5 models, BF16 only,              ~50 min on v5e-1
+  smoke  — 1 model (BERT-base), BF16 only,  ~8 min on v5e-1
+  quick  — 5 models, BF16 only,             ~50 min on v5e-1
 
 Results append to results/runs.jsonl (one JSON line per experiment).
 """
@@ -21,6 +21,8 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from benchmarks.runner import ExperimentConfig, run_experiment
 
 # ── Suite definitions ─────────────────────────────────────────────────────────
 SUITES: Dict[str, Dict[str, Any]] = {
@@ -66,9 +68,7 @@ def load_registry(path: Optional[str] = None) -> List[Dict[str, Any]]:
     try:
         import yaml
     except ImportError:
-        raise ImportError(
-            "pyyaml is required. Install with: pip install pyyaml"
-        )
+        raise ImportError("pyyaml is required. Install with: pip install pyyaml")
 
     registry_path = Path(path) if path else _REPO_ROOT / "models" / "registry.yaml"
     with registry_path.open() as fh:
@@ -93,9 +93,7 @@ def build_config(
     precision: str,
     device: str,
     framework: str = "jax",
-) -> "ExperimentConfig":  # noqa: F821
-    from benchmarks.runner import ExperimentConfig
-
+) -> ExperimentConfig:
     return ExperimentConfig(
         model_id=entry["id"],
         hf_id=entry["hf_id"],
@@ -145,33 +143,32 @@ def run_suite(
     """
     Execute a suite or a single model and append results to JSONL.
 
-    Returns the number of experiments run (0 on dry-run).
+    Returns:
+        Number of successfully completed experiments (≥0), or -1 on error.
     """
-    from benchmarks.runner import run_experiment
-
     registry = load_registry(registry_path)
 
-    # Determine which models to run
     if model_id:
         models = [m for m in registry if m["id"] == model_id]
         if not models:
             print(f"[error] model '{model_id}' not in registry", file=sys.stderr)
-            return 0
+            return -1
         precisions = [precision]
     elif suite_name:
         if suite_name not in SUITES:
             print(
                 f"[error] unknown suite '{suite_name}'. "
-                f"Available: {', '.join(SUITES)}", file=sys.stderr
+                f"Available: {', '.join(SUITES)}",
+                file=sys.stderr,
             )
-            return 0
+            return -1
         suite = SUITES[suite_name]
         models = filter_registry(registry, suite["model_ids"])
         precisions = suite["precisions"]
         print(f"Suite: {suite_name} — {suite['description']}")
     else:
         print("[error] provide --suite or --model", file=sys.stderr)
-        return 0
+        return -1
 
     configs = [
         build_config(entry, prec, device, framework)
@@ -182,7 +179,8 @@ def run_suite(
     print(f"Experiments planned: {len(configs)}")
     if dry_run:
         for cfg in configs:
-            print(f"  [dry-run] {cfg.model_id} | {cfg.precision} | {cfg.device}")
+            cost = f"${cfg.device_cost_usd_per_hr:.2f}/hr" if cfg.device_cost_usd_per_hr > 0 else "local"
+            print(f"  [dry-run] {cfg.model_id} | {cfg.precision} | {cfg.device} | {cost}")
         return 0
 
     completed = 0
@@ -229,19 +227,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--device",
         default="tpu",
-        help="Device identifier: tpu | cpu | gpu | tpu_v5e1 | rtx4090 | b200  (default: tpu)",
+        help="Device: tpu | cpu | gpu | tpu_v5e1 | rtx4090 | b200  (default: tpu)",
     )
     p.add_argument(
         "--framework",
         default="jax",
         choices=["jax"],
-        help="Framework (default: jax; Stage 1 only supports jax)",
+        help="Framework (default: jax; Stage 1 supports jax only)",
     )
     p.add_argument(
         "--precision",
         default="bf16",
         choices=["fp32", "bf16"],
-        help="Precision for single-model runs (default: bf16)",
+        help="Precision for --model runs (default: bf16)",
     )
     p.add_argument(
         "--output",
@@ -256,7 +254,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print planned experiments without running them",
+        help="Print planned experiments with cost estimate — no model downloads",
     )
     return p
 
@@ -275,6 +273,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         registry_path=args.registry,
         dry_run=args.dry_run,
     )
+    # n == -1 on error, 0 on dry-run, >0 on success
     return 0 if n >= 0 else 1
 
 

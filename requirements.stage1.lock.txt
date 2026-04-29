@@ -1,0 +1,21 @@
+# Stage 1 lock file — test-only dependencies (WSL2 dev environment)
+# Generated: 2026-04-29  Python 3.12.3
+#
+# NOTE: This lock file captures only the test/dev dependencies available in
+# the local WSL2 environment. The full JAX + transformers stack must be
+# frozen on the actual TPU/GPU VM after a successful Stage 1 smoke run:
+#
+#   ssh tpu-vm "pip freeze > requirements.stage1.full.lock.txt"
+#   gcloud compute scp tpu-vm:requirements.stage1.full.lock.txt .
+#
+# To reproduce the test environment exactly:
+#   pip install -r requirements.stage1.lock.txt
+
+# ── Test dependencies ──────────────────────────────────────────────────────────
+iniconfig==2.3.0
+numpy==2.4.4
+packaging==26.2
+pluggy==1.6.0
+Pygments==2.20.0
+pytest==9.0.3
+PyYAML==6.0.3

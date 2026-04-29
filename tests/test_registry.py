@@ -18,6 +18,8 @@ REQUIRED_FIELDS = {
     "attention_variant",
     "positional_encoding",
     "is_moe",
+    "gated",
+    "risk_level",
     "total_params_M",
     "active_params_M",
     "input_type",
@@ -31,6 +33,7 @@ VALID_TASKS = {
     "automatic-speech-recognition",
     "zero-shot-image-classification",
 }
+VALID_RISK_LEVELS = {"low", "medium", "high"}
 STAGE_1_MODEL_IDS = {"bert_base", "vit_b16", "gpt2", "whisper_base", "clip_vit_b32"}
 
 
@@ -95,12 +98,39 @@ class TestRegistryContent:
                 f"Model {model['id']}: is_moe must be bool"
             )
 
+    def test_gated_is_bool(self, registry):
+        for model in registry:
+            assert isinstance(model["gated"], bool), (
+                f"Model {model['id']}: gated must be bool"
+            )
+
+    def test_risk_level_is_valid(self, registry):
+        for model in registry:
+            assert model["risk_level"] in VALID_RISK_LEVELS, (
+                f"Model {model['id']}: risk_level must be one of {VALID_RISK_LEVELS}"
+            )
+
+    def test_stage1_models_are_not_gated(self, registry):
+        for model in registry:
+            assert not model["gated"], (
+                f"Stage 1 model {model['id']} should not be gated "
+                "(all Stage 1 models are publicly accessible)"
+            )
+
+    def test_stage1_models_are_low_risk(self, registry):
+        for model in registry:
+            assert model["risk_level"] == "low", (
+                f"Stage 1 model {model['id']} should be low risk "
+                "(novel-arch models are Stage 5+)"
+            )
+
     def test_bert_base_fields(self, registry):
         bert = next(m for m in registry if m["id"] == "bert_base")
         assert bert["hf_id"] == "bert-base-uncased"
         assert bert["input_type"] == "text"
         assert bert["total_params_M"] == 110
         assert bert["vocab_size"] == 30522
+        assert bert["gated"] is False
 
     def test_whisper_base_has_audio_fields(self, registry):
         whisper = next(m for m in registry if m["id"] == "whisper_base")
@@ -118,3 +148,9 @@ class TestRegistryContent:
                     "must have image_size"
                 )
                 assert len(model["image_size"]) == 3
+
+    def test_clip_has_combined_params_note(self, registry):
+        clip = next(m for m in registry if m["id"] == "clip_vit_b32")
+        assert clip["total_params_M"] == 151, (
+            "CLIP ViT-B/32 combined (vision+text) is ~151M"
+        )

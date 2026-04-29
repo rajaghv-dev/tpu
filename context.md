@@ -2,7 +2,29 @@
 
 Single-repo reference for hardware, compiler, model inference, and quantization
 benchmarking across TPU and GPU. Every claim is evidence-backed.
-Last updated: 2026-04-26
+Last updated: 2026-04-29
+
+---
+
+## Table of Contents
+
+| § | Section | Key content |
+|---|---------|-------------|
+| 1 | [Project Goal](#1-project-goal) | What this repo builds and proves |
+| 2 | [Hardware Inventory](#2-hardware-inventory) | Local GPUs, Cloud TPU specs, costs, India access |
+| 3 | [The 5 Execution Paths](#3-the-5-execution-paths) | JAX+TPU, JAX+GPU, PyTorch+GPU, torch_xla, HF API |
+| 4 | [Full Model Registry (~75 Models)](#4-full-model-registry-with-benchmark-justification-75-models) | Vision, NLP, audio, multimodal — with hardware insight per model |
+| 5 | [Experiment Dimensions](#5-experiment-dimensions) | Precision, compilation, sparsity, LLM modes |
+| 6 | [Per-Experiment Protocol](#6-per-experiment-protocol-13-min) | 9-phase measurement protocol |
+| 7 | [Suite Definitions](#7-suite-definitions) | smoke, quick, domain, arch, llm, full |
+| 8 | [Results Schema (JSONL)](#8-results-schema-jsonl) | Full field reference for runs.jsonl |
+| 9 | [Observability Infrastructure](#9-observability-infrastructure) | observe/ modules — gaps each one fixes |
+| 10 | [Staged Build Plan](#10-staged-build-plan-9-stages) | 9 stages with exit criteria; Stage 1 ✅ complete |
+| 11 | [Visualisation Plan](#11-visualisation-plan) | Dashboard views and chart types |
+| 12 | [Key Claims and Evidence Requirements](#12-key-claims-and-evidence-requirements) | What the benchmark must prove |
+| 13 | [Gaps — Status After Remediation](#13-gaps--status-after-remediation) | 15 gaps, assigned to stages |
+| 14 | [Evidence Chain and Lineage](#14-evidence-chain-and-lineage) | How to trace any claim to raw data |
+| 15 | [Cost Reference](#15-cost-reference) | Per-experiment, per-suite, per-month costs |
 
 ---
 

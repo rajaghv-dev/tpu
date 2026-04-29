@@ -8,6 +8,7 @@ np = pytest.importorskip("numpy")
 from observe.stats import (
     HIGH_VARIANCE_CV_PCT,
     TimingStats,
+    ThroughputStats,
     _iterative_sigma_mask,
     compute_timing_stats,
     throughput_stats,
@@ -23,9 +24,7 @@ class TestIterativeSigmaMask:
     def test_single_extreme_outlier(self):
         arr = np.array([10.0, 10.1, 9.9, 10.05, 1000.0])
         mask = _iterative_sigma_mask(arr)
-        # The 1000.0 value must be flagged
         assert mask[-1], "Extreme outlier at index 4 should be flagged"
-        # Others should not
         assert not mask[:-1].any(), "Non-outlier values should not be flagged"
 
     def test_uniform_array_no_outliers(self):
@@ -34,7 +33,6 @@ class TestIterativeSigmaMask:
         assert not mask.any()
 
     def test_very_small_array_untouched(self):
-        # With fewer than 4 elements, the loop body never executes
         arr = np.array([1.0, 2.0, 3.0])
         mask = _iterative_sigma_mask(arr)
         assert not mask.any()
@@ -43,7 +41,6 @@ class TestIterativeSigmaMask:
         arr = np.array([10.0, 10.0, 10.0, 10.0, 14.0])
         mask_tight = _iterative_sigma_mask(arr, sigma=1.0)
         mask_loose = _iterative_sigma_mask(arr, sigma=5.0)
-        # With sigma=1.0 the 14.0 should be flagged; with sigma=5.0 it may not be
         assert mask_tight[-1]
         assert not mask_loose[-1]
 
@@ -73,7 +70,6 @@ class TestComputeTimingStats:
 
     def test_high_variance_flagged(self):
         rng = np.random.default_rng(7)
-        # CV = std/mean * 100 = 5/10 * 100 = 50% → high variance
         timings = list(rng.normal(10.0, 5.0, 300))
         stats = compute_timing_stats(timings)
         assert stats.high_variance, f"CV={stats.cv_pct}% should be >= {HIGH_VARIANCE_CV_PCT}%"
@@ -91,7 +87,7 @@ class TestComputeTimingStats:
         timings = list(rng.normal(true_mean, 0.1, 295)) + [500.0, 600.0, 700.0, 800.0, 900.0]
         stats = compute_timing_stats(timings)
         assert stats.n_outliers > 0, "Extreme outliers should be removed"
-        assert abs(stats.mean_ms - true_mean) < 1.0, "Mean should be close to true_mean after removal"
+        assert abs(stats.mean_ms - true_mean) < 1.0
 
     def test_empty_raises(self):
         with pytest.raises(ValueError, match="empty"):
@@ -118,22 +114,38 @@ class TestComputeTimingStats:
 
 
 class TestThroughputStats:
+    def test_returns_dataclass(self):
+        timings = [10.0] * 100
+        result = throughput_stats(timings, batch_size=32)
+        assert isinstance(result, ThroughputStats)
+
     def test_basic_throughput(self):
         # 32 samples / 10ms per batch → 3200 samples/sec
-        timings = [10.0] * 100  # constant 10ms
+        timings = [10.0] * 100
         result = throughput_stats(timings, batch_size=32)
-        assert result["throughput_mean_samples_sec"] == pytest.approx(3200.0, rel=0.01)
+        assert result.mean_samples_sec == pytest.approx(3200.0, rel=0.01)
 
     def test_std_propagation(self):
         rng = np.random.default_rng(42)
         timings = list(rng.normal(10.0, 0.1, 300))
         result = throughput_stats(timings, batch_size=16)
-        assert result["throughput_std_samples_sec"] >= 0
-        assert result["throughput_mean_samples_sec"] > 0
+        assert result.std_samples_sec >= 0
+        assert result.mean_samples_sec > 0
 
-    def test_returns_required_keys(self):
+    def test_cv_pct_present(self):
         timings = [5.0] * 100
         result = throughput_stats(timings, batch_size=8)
-        assert "throughput_mean_samples_sec" in result
-        assert "throughput_std_samples_sec" in result
-        assert "throughput_cv_pct" in result
+        assert hasattr(result, "cv_pct")
+        assert result.cv_pct >= 0
+
+    def test_zero_mean_returns_zeros(self):
+        # Edge case: all zero timings → no divide-by-zero
+        result = throughput_stats([0.0] * 10, batch_size=8)
+        assert result.mean_samples_sec == 0.0
+        assert result.std_samples_sec == 0.0
+
+    def test_fields_accessible_as_attributes(self):
+        result = throughput_stats([5.0] * 50, batch_size=16)
+        _ = result.mean_samples_sec
+        _ = result.std_samples_sec
+        _ = result.cv_pct

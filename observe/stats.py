@@ -5,9 +5,8 @@ Stage 1 gap fixed: C2 (multi-run statistics with CV check).
 """
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import Sequence
 
 import numpy as np
 
@@ -28,19 +27,25 @@ class TimingStats:
     high_variance: bool
 
 
+@dataclass
+class ThroughputStats:
+    mean_samples_sec: float
+    std_samples_sec: float
+    cv_pct: float
+
+
 def _iterative_sigma_mask(values: np.ndarray, sigma: float = 3.0) -> np.ndarray:
     """
     Iterative MAD-based outlier detection (modified Z-score).
 
-    Uses median and Median Absolute Deviation instead of mean and std, so
-    a single extreme outlier does not distort the threshold and hide itself.
+    Uses median and Median Absolute Deviation instead of mean and std so that
+    a single extreme outlier does not inflate the threshold and hide itself.
 
     Returns a boolean mask where True = outlier. Removes at most one outlier
     per iteration (the most extreme) until no value exceeds the threshold.
 
-    Modified Z-score: 0.6745 * |xi - median| / MAD
-    Values with |modified_z| > sigma * 1.48 are treated as outliers.
-    (Factor 1.48 ≈ 1/0.6745 makes threshold equivalent to sigma-σ in normal data.)
+    Modified Z-score: 0.6745 * |xi - median| / MAD.
+    Falls back to 3-sigma when MAD is zero (all remaining values identical).
     """
     mask = np.zeros(len(values), dtype=bool)
     remaining_idx = np.arange(len(values))
@@ -50,7 +55,6 @@ def _iterative_sigma_mask(values: np.ndarray, sigma: float = 3.0) -> np.ndarray:
         med = np.median(vals)
         mad = np.median(np.abs(vals - med))
         if mad == 0.0:
-            # All remaining values identical — use mean/std fallback
             mean = np.mean(vals)
             std = np.std(vals, ddof=1)
             if std == 0.0:
@@ -73,8 +77,9 @@ def compute_timing_stats(timings_ms: Sequence[float]) -> TimingStats:
     """
     Compute benchmark statistics from raw timing measurements.
 
-    Applies iterative 3-sigma outlier removal, then computes percentile
-    latencies and coefficient of variation. Flags high_variance when CV ≥ 10%.
+    Applies iterative MAD-based outlier removal (modified Z-score), then
+    computes percentile latencies and coefficient of variation.
+    Flags high_variance when CV ≥ 10%.
 
     Args:
         timings_ms: Wall-clock pass durations in milliseconds.
@@ -111,25 +116,31 @@ def compute_timing_stats(timings_ms: Sequence[float]) -> TimingStats:
     )
 
 
-def throughput_stats(timings_ms: Sequence[float], batch_size: int) -> dict:
+def throughput_stats(timings_ms: Sequence[float], batch_size: int) -> ThroughputStats:
     """
-    Convert timing measurements to throughput statistics.
+    Convert per-batch timing measurements to throughput statistics.
 
     Args:
         timings_ms: Per-batch wall-clock times in milliseconds.
         batch_size: Number of samples per batch.
 
     Returns:
-        Dict with throughput_mean_samples_sec and throughput_std_samples_sec.
+        ThroughputStats dataclass with mean, std, and CV.
     """
     stats = compute_timing_stats(timings_ms)
     mean_s = stats.mean_ms / 1000.0
     std_s = stats.std_ms / 1000.0
-    mean_tp = batch_size / mean_s if mean_s > 0 else 0.0
+    if mean_s <= 0:
+        return ThroughputStats(
+            mean_samples_sec=0.0,
+            std_samples_sec=0.0,
+            cv_pct=0.0,
+        )
     # Error propagation: σ_tp ≈ (batch_size / mean_s²) * σ_s
-    std_tp = (batch_size / (mean_s ** 2)) * std_s if mean_s > 0 else 0.0
-    return {
-        "throughput_mean_samples_sec": round(mean_tp, 1),
-        "throughput_std_samples_sec": round(std_tp, 1),
-        "throughput_cv_pct": stats.cv_pct,
-    }
+    mean_tp = batch_size / mean_s
+    std_tp = (batch_size / (mean_s ** 2)) * std_s
+    return ThroughputStats(
+        mean_samples_sec=round(mean_tp, 1),
+        std_samples_sec=round(std_tp, 1),
+        cv_pct=stats.cv_pct,
+    )
