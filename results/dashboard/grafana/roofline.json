@@ -1,0 +1,172 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Arithmetic intensity vs achieved TFLOPs with hardware roofline overlays. Populates once Stage 3 attaches arithmetic_intensity_flops_per_byte and achieved_tflops to benchmark.run spans/metrics.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Roofline scatter: arithmetic intensity (FLOPs/byte) vs achieved TFLOPs. Color by device. Overlays mark hardware ridge points (compute peak / memory BW).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Achieved TFLOPs",
+            "axisPlacement": "auto",
+            "drawStyle": "points",
+            "fillOpacity": 0,
+            "lineInterpolation": "linear",
+            "lineWidth": 0,
+            "pointSize": 8,
+            "scaleDistribution": {"type": "log", "log": 10},
+            "showPoints": "always"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "v5e-1 roofline (peak 394 TFLOPs, BW 820 GB/s, ridge 480)"},
+            "properties": [
+              {"id": "custom.drawStyle", "value": "line"},
+              {"id": "custom.lineWidth", "value": 2},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "RTX 4090 roofline (peak 330 TFLOPs, BW 1008 GB/s, ridge 327)"},
+            "properties": [
+              {"id": "custom.drawStyle", "value": "line"},
+              {"id": "custom.lineWidth", "value": 2},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "B200 roofline (peak 2250 TFLOPs, BW 4000 GB/s, ridge 562)"},
+            "properties": [
+              {"id": "custom.drawStyle", "value": "line"},
+              {"id": "custom.lineWidth", "value": 2},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "purple"}}
+            ]
+          }
+        ]
+      },
+      "gridPos": {"h": 18, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {"mode": "multi", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "achieved_tflops{device=~\"$device\", model=~\"$model\"}",
+          "legendFormat": "{{model}} on {{device}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "vector(394)",
+          "legendFormat": "v5e-1 roofline (peak 394 TFLOPs, BW 820 GB/s, ridge 480)",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "vector(330)",
+          "legendFormat": "RTX 4090 roofline (peak 330 TFLOPs, BW 1008 GB/s, ridge 327)",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "vector(2250)",
+          "legendFormat": "B200 roofline (peak 2250 TFLOPs, BW 4000 GB/s, ridge 562)",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Roofline: Arithmetic Intensity vs Achieved TFLOPs",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["tpu-bench", "roofline"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+        "hide": 0,
+        "label": "Prometheus / Mimir",
+        "refresh": 1,
+        "regex": ""
+      },
+      {
+        "name": "device",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "query": "label_values(achieved_tflops, device)",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "label": "Device"
+      },
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "query": "label_values(achieved_tflops, model)",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "label": "Model"
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "TPU Bench - Roofline",
+  "uid": "tpu-bench-roofline",
+  "version": 1,
+  "weekStart": ""
+}

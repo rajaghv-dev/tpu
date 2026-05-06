@@ -1,0 +1,154 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Cost-per-1k-samples by model and device. Approximation: median experiment_cost_usd divided by samples-per-sec integrated over a 1h window, scaled to 1k samples.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Bar chart of approximate USD per 1k samples, grouped by device.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "USD per 1k samples",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "barAlignment": 0
+          },
+          "mappings": [],
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.6,
+        "groupWidth": 0.7,
+        "legend": {"calcs": ["mean"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {"mode": "multi", "sort": "desc"},
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "1000 * histogram_quantile(0.5, sum by (le, model, device, precision) (rate(benchmark_experiment_cost_usd_bucket{model=~\"$model\", device=~\"$device\"}[1h]))) / clamp_min(sum by (model, device, precision) (sum_over_time(benchmark_throughput_samples_per_sec_sum{model=~\"$model\", device=~\"$device\"}[1h])), 1)",
+          "legendFormat": "{{model}} on {{device}} ({{precision}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "USD per 1k samples (median cost / throughput, 1h window)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Cumulative experiment cost over time (median bucket sum).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "USD",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 12},
+      "id": 2,
+      "options": {
+        "legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.5, sum by (le, model, device) (rate(benchmark_experiment_cost_usd_bucket{model=~\"$model\", device=~\"$device\"}[5m])))",
+          "legendFormat": "{{model}} on {{device}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Median experiment cost (USD) by model/device",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["tpu-bench", "cost"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+        "hide": 0,
+        "label": "Prometheus / Mimir",
+        "refresh": 1,
+        "regex": ""
+      },
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "query": "label_values(benchmark_experiment_cost_usd_bucket, model)",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "label": "Model"
+      },
+      {
+        "name": "device",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "query": "label_values(benchmark_experiment_cost_usd_bucket, device)",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "label": "Device"
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "TPU Bench - Cost",
+  "uid": "tpu-bench-cost",
+  "version": 1,
+  "weekStart": ""
+}

@@ -353,3 +353,62 @@ class TestRunExperiment:
             result = rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=loader)
 
         assert result["throughput_mean_samples_sec"] > 0
+
+
+# ── Exception capture ─────────────────────────────────────────────────────────
+
+class TestBenchmarkErrorCapture:
+    """
+    Verifies the structured-failure path: when any phase raises, the runner
+    wraps the original exception in BenchmarkError with the phase name +
+    error category, AND writes a results/run_logs/<run_id>/error.json.
+    """
+
+    def test_model_load_failure_writes_error_json(self, tmp_path):
+        import benchmarks.runner as rm
+
+        def failing_loader(cfg):
+            raise OSError("simulated HF download failure")
+
+        cfg = _base_config(batch_size_throughput=2)
+        with pytest.raises(rm.BenchmarkError) as exc_info:
+            with (
+                mock.patch.object(rm, "N_WARMUP", 1),
+                mock.patch.object(rm, "N_MEASURE", 1),
+                mock.patch.object(rm, "N_BLOCKS", 1),
+            ):
+                rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=failing_loader)
+
+        err = exc_info.value
+        assert err.phase == "model_load"
+        # OSError in model_load → 'network' category (per _classify_error)
+        assert err.error_category == "network"
+        assert "simulated HF download failure" in err.original_message
+
+        # error.json should exist for at least one run_id under tmp_path/run_logs/
+        run_logs = tmp_path / "run_logs"
+        assert run_logs.exists()
+        error_files = list(run_logs.glob("*/error.json"))
+        assert len(error_files) == 1, f"expected 1 error.json, found {error_files}"
+        import json
+        payload = json.loads(error_files[0].read_text())
+        assert payload["phase"] == "model_load"
+        assert payload["error_category"] == "network"
+        assert payload["lineage"]["input_seed"] == cfg.input_seed
+
+    def test_keyboard_interrupt_categorised(self, tmp_path):
+        import benchmarks.runner as rm
+
+        def interrupting_loader(cfg):
+            raise KeyboardInterrupt()
+
+        cfg = _base_config(batch_size_throughput=2)
+        with pytest.raises(rm.BenchmarkError) as exc_info:
+            with (
+                mock.patch.object(rm, "N_WARMUP", 1),
+                mock.patch.object(rm, "N_MEASURE", 1),
+                mock.patch.object(rm, "N_BLOCKS", 1),
+            ):
+                rm.run_experiment(cfg, results_dir=str(tmp_path), _loader=interrupting_loader)
+
+        assert exc_info.value.error_category == "interrupted"

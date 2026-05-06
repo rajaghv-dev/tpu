@@ -15,3 +15,8 @@ data/
 wandb/
 *.tfevents.*
 .claude/
+
+# Runtime state from staged scripts/ pipeline (TPU name, zone, deploy timestamps)
+.tpu-bench-state/
+# Per-run tmux tee logs from 50_run_smoke.sh / 51_run_quick.sh
+results/*.log

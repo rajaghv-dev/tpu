@@ -6,19 +6,122 @@ Stage 1 runs phases 1–5 and 9; phases 6–8 are scheduled for later stages.
 """
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 
 from observe.compile_controller import clear_xla_cache, timed_call
 from observe.lineage import build_lineage
+from observe.probe import (
+    fanout_after_phase,
+    fanout_after_run,
+    fanout_before_phase,
+    fanout_before_run,
+    fanout_on_error,
+)
 from observe.stats import ThroughputStats, compute_timing_stats, throughput_stats
+
+
+# ── Structured exception capture ──────────────────────────────────────────────
+# Every phase is wrapped in `with phase("name"):` (see below). On unexpected
+# error the underlying exception is wrapped in `BenchmarkError` carrying enough
+# attributes for the harness to record a clean failure stub in runs.jsonl and
+# for the user to triage from results/run_logs/<run_id>/error.json without
+# re-running the experiment.
+class BenchmarkError(Exception):
+    """Raised when a benchmark phase fails. Carries phase + category + traceback."""
+    def __init__(
+        self,
+        phase: str,
+        original: BaseException,
+        category: str = "other",
+    ) -> None:
+        self.phase = phase
+        self.original_type = type(original).__name__
+        self.original_message = str(original)
+        self.traceback_str = "".join(traceback.format_exception(type(original), original, original.__traceback__))
+        self.error_category = category
+        super().__init__(f"[{phase}/{category}] {self.original_type}: {self.original_message}")
+
+
+def _classify_error(exc: BaseException, current_phase: str) -> str:
+    """
+    Map an exception to a stable category string for dashboard filtering.
+
+    Categories: gated_model | network | compile_error | runtime_error | oom
+              | interrupted | other
+    The classification uses string-matching on the exception class name so
+    we don't need to import upstream packages (huggingface_hub, jaxlib) at
+    module-import time — keeps the runner lightweight when these aren't even
+    installed (e.g. local CI on CPU-only hosts).
+    """
+    if isinstance(exc, KeyboardInterrupt):
+        return "interrupted"
+    type_name = type(exc).__name__
+    msg = str(exc).lower()
+    if "GatedRepo" in type_name or "gated" in msg:
+        return "gated_model"
+    if "Repository" in type_name and "NotFound" in type_name:
+        return "gated_model"  # treat 404 the same as 403 — both block model load
+    # Network: OSError during model_load is almost always HF download failure.
+    if isinstance(exc, OSError) and current_phase == "model_load":
+        return "network"
+    if "XlaRuntime" in type_name or "xla" in msg:
+        if "out of memory" in msg or "oom" in msg or "resource exhausted" in msg:
+            return "oom"
+        if current_phase == "compile":
+            return "compile_error"
+        return "runtime_error"
+    return "other"
+
+
+@contextlib.contextmanager
+def phase(name: str) -> Iterator[None]:
+    """
+    Context manager wrapping one phase of run_experiment. On exception:
+      - classify it,
+      - wrap as BenchmarkError carrying phase/category/traceback,
+      - re-raise.
+
+    Also fans out before/after/on_error to every registered probe (see
+    observe/probe.py). Probe exceptions are swallowed by the fanout helpers
+    so they cannot fail the benchmark.
+
+    Successful phases pass through cleanly with the cost of N probe calls
+    (no-op default impls).
+    """
+    fanout_before_phase(name)
+    t0 = time.perf_counter()
+    try:
+        yield
+    except BenchmarkError:
+        # Already a BenchmarkError (re-raised from a nested with phase()) —
+        # propagate without re-wrapping; the original phase tag wins.
+        fanout_on_error(name, BaseException())  # best-effort tag — original tag preserved
+        raise
+    except KeyboardInterrupt as exc:
+        fanout_on_error(name, exc)
+        raise BenchmarkError(name, exc, "interrupted") from exc
+    except BaseException as exc:  # noqa: BLE001 — intentional broad capture
+        fanout_on_error(name, exc)
+        raise BenchmarkError(name, exc, _classify_error(exc, name)) from exc
+    else:
+        fanout_after_phase(name, time.perf_counter() - t0)
+
+
+def _write_error_log(run_id: str, results_dir: str, payload: dict) -> None:
+    """Write results/run_logs/<run_id>/error.json. Creates directory if needed."""
+    log_dir = Path(results_dir) / "run_logs" / run_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+    (log_dir / "error.json").write_text(json.dumps(payload, indent=2, default=str))
 
 # ── Measurement constants ────────────────────────────────────────────────────
 N_WARMUP = 20    # passes discarded before latency measurement
@@ -349,72 +452,108 @@ def run_experiment(
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     sync = jax.block_until_ready
 
-    # ── Phase 1: Pre-flight ────────────────────────────────────────────────
-    _ = jax.local_devices()
-
-    # ── Load model ────────────────────────────────────────────────────────
-    if _loader is not None:
-        model, params, hf_revision = _loader(config)
-    else:
-        model, params, hf_revision = _load_flax_model(config)
-
-    forward_fn = _build_forward_fn(model, config.task)
-
-    decoder_start_id: Optional[int] = None
-    if config.task == "automatic-speech-recognition":
-        decoder_start_id = getattr(
-            getattr(model, "config", None), "decoder_start_token_id", 50258
-        ) or 50258
-
-    rng = np.random.default_rng(config.input_seed)
-    inputs_bs1 = make_synthetic_inputs(config, batch_size=1, rng=rng)
-    args_bs1 = _inputs_to_args(inputs_bs1, config.task, decoder_start_id)
-
-    # ── Phase 2: Compile ───────────────────────────────────────────────────
-    clear_xla_cache()
-    first_compile_s, _ = timed_call(forward_fn, (params, *args_bs1), sync)
-    subsequent_compile_s, _ = timed_call(forward_fn, (params, *args_bs1), sync)
-
-    # ── Phase 3: Warmup ────────────────────────────────────────────────────
-    for _ in range(N_WARMUP):
-        out = forward_fn(params, *args_bs1)
-    sync(out)
-
-    # ── Phase 4: Latency (bs=1, N_BLOCKS × N_MEASURE passes) ──────────────
-    all_latency_ms: List[float] = []
-    for blk in range(N_BLOCKS):
-        blk_rng = np.random.default_rng(config.input_seed + blk)
-        blk_inputs = make_synthetic_inputs(config, batch_size=1, rng=blk_rng)
-        blk_args = _inputs_to_args(blk_inputs, config.task, decoder_start_id)
-        all_latency_ms.extend(
-            _time_passes(forward_fn, params, blk_args, N_MEASURE, sync)
-        )
-
-    lat = compute_timing_stats(all_latency_ms)
-
-    # ── Phase 5: Throughput (bs=max, N_BLOCKS × N_MEASURE passes) ─────────
-    bs_tp = config.batch_size_throughput
-    all_tp_ms: List[float] = []
-    for blk in range(N_BLOCKS):
-        blk_rng = np.random.default_rng(config.input_seed + blk + 100)
-        blk_inputs = make_synthetic_inputs(config, batch_size=bs_tp, rng=blk_rng)
-        blk_args = _inputs_to_args(blk_inputs, config.task, decoder_start_id)
-        all_tp_ms.extend(
-            _time_passes(forward_fn, params, blk_args, N_MEASURE, sync)
-        )
-
-    tp = throughput_stats(all_tp_ms, bs_tp)
-
-    # ── Phase 9: Post-flight ───────────────────────────────────────────────
-    _post = forward_fn(params, *args_bs1)
-    sync(_post)
-
-    # ── Lineage ────────────────────────────────────────────────────────────
+    # Lineage captured EARLY — before model_load — so that even an HF download
+    # failure produces a useful error.json. hf_revision is "unknown" until the
+    # model is loaded, then updated below.
     lineage = build_lineage(
         model_id=config.model_id,
-        hf_revision=hf_revision,
+        hf_revision=None,
         input_seed=config.input_seed,
     )
+
+    # Probe lifecycle: before_run for every registered probe. The probe layer
+    # creates the log dir if needed. We deliberately do this BEFORE the try
+    # block so a probe that throws in before_run still surfaces its error
+    # (probe.py swallows the exception and logs a warning, but doesn't lose it).
+    log_dir = Path(results_dir) / "run_logs" / run_id
+    fanout_before_run(run_id, config, log_dir)
+
+    try:
+        # ── Phase 1: Pre-flight ────────────────────────────────────────────
+        with phase("preflight"):
+            _ = jax.local_devices()
+
+        # ── Phase 2 setup: Load model ──────────────────────────────────────
+        with phase("model_load"):
+            if _loader is not None:
+                model, params, hf_revision = _loader(config)
+            else:
+                model, params, hf_revision = _load_flax_model(config)
+            # Refresh lineage now that we have the actual hf_revision.
+            lineage["hf_model_revision"] = hf_revision
+
+            forward_fn = _build_forward_fn(model, config.task)
+
+            decoder_start_id: Optional[int] = None
+            if config.task == "automatic-speech-recognition":
+                decoder_start_id = getattr(
+                    getattr(model, "config", None), "decoder_start_token_id", 50258
+                ) or 50258
+
+            rng = np.random.default_rng(config.input_seed)
+            inputs_bs1 = make_synthetic_inputs(config, batch_size=1, rng=rng)
+            args_bs1 = _inputs_to_args(inputs_bs1, config.task, decoder_start_id)
+
+        # ── Phase 2: Compile ───────────────────────────────────────────────
+        with phase("compile"):
+            clear_xla_cache()
+            first_compile_s, _ = timed_call(forward_fn, (params, *args_bs1), sync)
+            subsequent_compile_s, _ = timed_call(forward_fn, (params, *args_bs1), sync)
+
+        # ── Phase 3: Warmup ────────────────────────────────────────────────
+        with phase("warmup"):
+            for _ in range(N_WARMUP):
+                out = forward_fn(params, *args_bs1)
+            sync(out)
+
+        # ── Phase 4: Latency (bs=1, N_BLOCKS × N_MEASURE passes) ──────────
+        with phase("latency"):
+            all_latency_ms: List[float] = []
+            for blk in range(N_BLOCKS):
+                blk_rng = np.random.default_rng(config.input_seed + blk)
+                blk_inputs = make_synthetic_inputs(config, batch_size=1, rng=blk_rng)
+                blk_args = _inputs_to_args(blk_inputs, config.task, decoder_start_id)
+                all_latency_ms.extend(
+                    _time_passes(forward_fn, params, blk_args, N_MEASURE, sync)
+                )
+            lat = compute_timing_stats(all_latency_ms)
+
+        # ── Phase 5: Throughput (bs=max, N_BLOCKS × N_MEASURE passes) ─────
+        with phase("throughput"):
+            bs_tp = config.batch_size_throughput
+            all_tp_ms: List[float] = []
+            for blk in range(N_BLOCKS):
+                blk_rng = np.random.default_rng(config.input_seed + blk + 100)
+                blk_inputs = make_synthetic_inputs(config, batch_size=bs_tp, rng=blk_rng)
+                blk_args = _inputs_to_args(blk_inputs, config.task, decoder_start_id)
+                all_tp_ms.extend(
+                    _time_passes(forward_fn, params, blk_args, N_MEASURE, sync)
+                )
+            tp = throughput_stats(all_tp_ms, bs_tp)
+
+        # ── Phase 9: Post-flight ───────────────────────────────────────────
+        with phase("postflight"):
+            _post = forward_fn(params, *args_bs1)
+            sync(_post)
+
+    except BenchmarkError as exc:
+        # Persist enough state for triage without re-running.
+        _write_error_log(run_id, results_dir, {
+            "run_id": run_id,
+            "timestamp": timestamp,
+            "model": config.model_id,
+            "device": config.device,
+            "precision": config.precision,
+            "phase": exc.phase,
+            "exception_type": exc.original_type,
+            "exception_message": exc.original_message,
+            "error_category": exc.error_category,
+            "traceback": exc.traceback_str,
+            "lineage": lineage,
+        })
+        # Probe layer also gets a chance to flush. result=None signals failure.
+        fanout_after_run(run_id, None, log_dir)
+        raise
 
     # ── Cost estimate ──────────────────────────────────────────────────────
     total_s = (
@@ -501,4 +640,7 @@ def run_experiment(
     }
 
     _write_run_log(run_id, result, results_dir)
+    # Probe layer flush + per-probe JSON writes happen AFTER the run-log so
+    # log_dir already exists for them.
+    fanout_after_run(run_id, result, log_dir)
     return result

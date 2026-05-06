@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from benchmarks.runner import ExperimentConfig, run_experiment
+from benchmarks.runner import BenchmarkError, ExperimentConfig, run_experiment
 
 # ── Suite definitions ─────────────────────────────────────────────────────────
 SUITES: Dict[str, Dict[str, Any]] = {
@@ -184,6 +184,7 @@ def run_suite(
         return 0
 
     completed = 0
+    failed = 0
     for cfg in configs:
         label = f"{cfg.model_id} | {cfg.precision} | {cfg.device}"
         print(f"\n▶ {label}", flush=True)
@@ -202,10 +203,52 @@ def run_suite(
                 f"p50={lat}ms  tp={tp} smp/s  CV={cv}%{flag_str}"
             )
             completed += 1
-        except Exception as exc:
-            print(f"  ✗ FAILED: {exc}", file=sys.stderr)
+        except BenchmarkError as exc:
+            # Phase tag + category come straight from the runner's structured
+            # capture — actionable without needing to grep run_logs.
+            print(
+                f"  ✗ FAILED [{exc.phase}/{exc.error_category}] "
+                f"{exc.original_type}: {exc.original_message}",
+                file=sys.stderr,
+            )
+            # Find the run_id the runner wrote to results/run_logs/ so the
+            # failure stub can link back to its error.json. The runner writes
+            # the directory just before raising, so the most recently mtime'd
+            # run_logs subdirectory belongs to this failure.
+            try:
+                run_logs = Path(_REPO_ROOT) / "results" / "run_logs"
+                latest = max(
+                    (p for p in run_logs.iterdir() if p.is_dir()),
+                    key=lambda p: p.stat().st_mtime,
+                )
+                run_id_for_stub = latest.name
+            except (ValueError, OSError, FileNotFoundError):
+                run_id_for_stub = None
+            failure_stub = {
+                "status": "failed",
+                "run_id": run_id_for_stub,
+                "model": cfg.model_id,
+                "device": cfg.device,
+                "precision": cfg.precision,
+                "phase": exc.phase,
+                "exception_type": exc.original_type,
+                "exception_message": exc.original_message,
+                "error_category": exc.error_category,
+            }
+            append_result(failure_stub, output_path)
+            failed += 1
+        except KeyboardInterrupt:
+            print(f"  ✗ INTERRUPTED — partial results in {output_path}", file=sys.stderr)
+            raise
+        except Exception as exc:  # noqa: BLE001 — last-resort fallback
+            print(f"  ✗ FAILED (unhandled): {type(exc).__name__}: {exc}", file=sys.stderr)
+            failed += 1
 
-    print(f"\nDone: {completed}/{len(configs)} experiments written to {output_path}")
+    summary = f"Done: {completed}/{len(configs)} succeeded"
+    if failed > 0:
+        summary += f", {failed} failed (see results/run_logs/<run_id>/error.json)"
+    summary += f" → {output_path}"
+    print(f"\n{summary}")
     return completed
 
 
