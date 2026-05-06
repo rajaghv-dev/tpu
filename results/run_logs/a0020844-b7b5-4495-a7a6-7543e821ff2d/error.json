@@ -1,0 +1,22 @@
+{
+  "run_id": "a0020844-b7b5-4495-a7a6-7543e821ff2d",
+  "timestamp": "2026-05-06T17:33:35.820494Z",
+  "model": "bert_base",
+  "device": "tpu",
+  "precision": "bf16",
+  "phase": "model_load",
+  "exception_type": "ImportError",
+  "exception_message": "cannot import name 'FlaxAutoModelForSequenceClassification' from 'transformers' (/home/zos/.local/lib/python3.10/site-packages/transformers/__init__.py)",
+  "error_category": "other",
+  "traceback": "Traceback (most recent call last):\n  File \"/home/zos/tpu/benchmarks/runner.py\", line 91, in phase\n    yield\n  File \"/home/zos/tpu/benchmarks/runner.py\", line 456, in run_experiment\n    model, params, hf_revision = _load_flax_model(config)\n  File \"/home/zos/tpu/benchmarks/runner.py\", line 241, in _load_flax_model\n    from transformers import FlaxAutoModelForSequenceClassification\nImportError: cannot import name 'FlaxAutoModelForSequenceClassification' from 'transformers' (/home/zos/.local/lib/python3.10/site-packages/transformers/__init__.py)\n",
+  "lineage": {
+    "git_sha": "unknown",
+    "jax_version": "0.6.2",
+    "torch_version": "not_installed",
+    "transformers_version": "5.8.0",
+    "hf_model_revision": "unknown",
+    "input_seed": 42,
+    "n_independent_runs": 3,
+    "environment_hash": "f20de0e48e432605"
+  }
+}

@@ -77,33 +77,73 @@ Not a vague "TPUs are faster" claim. Concrete numbers, per model, per precision,
 
 ## Quick Start
 
-### Run the benchmark (Stage 1 — JAX + TPU, 5 models)
+### One-shot pipeline (recommended) — staged scripts in `scripts/`
 
 ```bash
-# Clone and install
+# Clone the repo, install gcloud, authenticate.
 git clone https://github.com/rajaghv-dev/tpu && cd tpu
+
+# 1. Local + cloud preflight (free, read-only).
+./scripts/00_validate_local.sh
+./scripts/01_validate_gcp.sh
+./scripts/91_predict_cost.sh smoke tpu_v5litepod_1   # forecast: ~$0.05
+
+# 2. Run the entire pipeline (provision → install → smoke → teardown).
+./scripts/run_all.sh --suite smoke
+# Or: --suite quick (50 min, ~$0.30) — and --keep-tpu / --no-gcs / --from N to customise.
+```
+
+The orchestrator picks a US zone with v5e-1 spot capacity (multi-zone fallback),
+deploys the repo, installs `jax[tpu]`, runs the harness inside `tmux`, pulls
+results, and tears down. See `scripts/README.md` for the full stage list and
+`scripts/lib/config.sh` for every overridable variable.
+
+### Manual harness invocation
+
+```bash
 pip install -r requirements.txt        # includes jax[tpu], transformers, pytest
 
-# Smoke test — 1 model (BERT-base), BF16, ~8 min on v5e-1
 python benchmarks/harness.py --suite smoke --device tpu
-
-# Quick suite — all 5 Stage 1 models, BF16, ~50 min on v5e-1
 python benchmarks/harness.py --suite quick --device tpu
+python benchmarks/harness.py --suite quick --device tpu --dry-run    # plan only
+python benchmarks/harness.py --model bert_base --device gpu          # single model
+```
 
-# Preview what would run (no model downloads)
-python benchmarks/harness.py --suite quick --device tpu --dry-run
+### Cost monitoring
 
-# Single model on local GPU
-python benchmarks/harness.py --model bert_base --device gpu
+```bash
+./scripts/90_status.sh                             # current burn rate ($/hr)
+./scripts/91_predict_cost.sh quick tpu_v5litepod_1 # forecast a planned run
+./scripts/92_idle_check.sh                         # flag VMs running >2h
+./scripts/71_verify_teardown.sh                    # confirm $0/hr after teardown
 ```
 
 Results append to `results/runs.jsonl`. Dashboard at `results/dashboard/index.html`.
+Run `python scripts/render_results.py` to regenerate `results/RESULTS.md`
+(top-level summary + per-probe coverage) and per-run `REPORT.md` files.
+
+### Observability (optional)
+
+```python
+from observe.probe import set_active_probes
+from observe.timing_probe import TimingProbe
+from observe.memory_probe import MemoryProbe
+from observe.otel_probe import OTelProbe
+
+set_active_probes([TimingProbe(), MemoryProbe(), OTelProbe()])  # before harness run
+```
+
+```bash
+# OTel exporter (probe is a no-op unless these are set):
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_SERVICE_NAME=tpu-bench
+```
 
 ### Run tests (no GPU/TPU needed)
 
 ```bash
 pip install pytest pyyaml numpy
-pytest tests/ -v              # 97 tests across stats, lineage, registry, runner, harness
+pytest tests/ -v              # ~180 tests (probe tests + harness tests)
 ```
 
 ### Google Colab Pro
@@ -130,13 +170,38 @@ import os; os.environ['HF_TOKEN'] = 'your_token'   # for gated models (Gemma etc
 | `observe/compile_controller.py` | XLA cache clearing, cold + warm compile timing |
 | `results/runs.jsonl` | Append-only result log (one JSON per experiment) |
 | `results/dashboard/index.html` | Static sortable/filterable table dashboard |
-| `tests/` | 97 unit tests (pytest, no GPU required) |
+| `tests/` | ~180 unit tests (pytest, no GPU required) |
 
 **Stage 1 models:** BERT-base · ViT-B/16 · GPT-2 · Whisper-base · CLIP ViT-B/32
 
 **Stage 1 gaps fixed:** C2 (multi-run statistics with CV<10% check) · C3 (XLA cache cleared before every compile measurement)
 
 **Next:** Stage 2 adds Paths 2+3 (JAX+GPU, PyTorch+GPU), system_monitor.py, 15 models, heatmap dashboard.
+
+---
+
+## Probes & Observability
+
+A pluggable probe layer sits alongside the harness. Probes implement the
+`Probe` ABC in `observe/probe.py` and opt into any subset of six lifecycle
+hooks: `before_run`, `after_run`, `before_phase`, `after_phase`, `on_error`,
+`write_log`. The runner fans events out to every registered probe; failures
+in one probe are isolated and never break the run. Register them via
+`set_active_probes([...])` before invoking the harness.
+
+| Probe | What it captures | Optional dep |
+|-------|------------------|--------------|
+| `TimingProbe` | Wall-clock per phase + run total | — |
+| `MemoryProbe` | psutil RSS/VMS snapshots at phase boundaries | `psutil` |
+| `InputFingerprintProbe` | SHA-256 of synthetic inputs (reproducibility) | — |
+| `HloDumpProbe` | Sets `XLA_FLAGS` for HLO IR dump; parses summary stats | — |
+| `JaxProfilerProbe` | Wraps the latency phase with `jax.profiler.start_trace` | `jax` |
+| `CloudMonitoringProbe` | 1 Hz polling of GCP TPU metrics (mxu_util, mem_util, mem_bw_util) | `google-cloud-monitoring` |
+| `OTelProbe` | OpenTelemetry spans for runs/phases + histograms (latency, throughput, cost) | `opentelemetry-sdk` |
+
+Grafana dashboards (importable JSON) live at `results/dashboard/grafana/` —
+roofline, MXU heatmap, latency violins, failures, cost. See that
+directory's README for the data-source wiring.
 
 ---
 
@@ -371,32 +436,75 @@ tpu/                                  (github.com/rajaghv-dev/tpu)
 ├── models/
 │   └── registry.yaml                 ✅ 5 Stage 1 models (BERT · ViT · GPT-2 · Whisper · CLIP)
 │
-├── observe/                          ✅ Stage 1 complete
+├── observe/                          ✅ Stage 1 complete + probe.py + 7 probe modules
 │   ├── stats.py                      MAD outlier removal · p50/p95/p99 · CV<10% check
 │   ├── lineage.py                    git SHA · package versions · HF model revision
-│   └── compile_controller.py         XLA cache clear · cold + warm compile timing
+│   ├── compile_controller.py         XLA cache clear · cold + warm compile timing
+│   ├── probe.py                      Probe ABC · registry · lifecycle fan-out
+│   ├── timing_probe.py               Wall-clock per phase + run total
+│   ├── memory_probe.py               psutil RSS/VMS at phase boundaries
+│   ├── input_fingerprint.py          SHA-256 of synthetic inputs
+│   ├── hlo_dump_probe.py             XLA_FLAGS HLO dump + summary parser
+│   ├── jax_profiler_probe.py         jax.profiler trace around latency phase
+│   ├── cloud_monitoring_probe.py     1 Hz GCP TPU metrics (mxu/mem/bw util)
+│   └── otel_probe.py                 OpenTelemetry spans + histograms
 │
 ├── results/
 │   ├── runs.jsonl                    Append-only benchmark results (one JSON line/experiment)
 │   └── dashboard/
-│       └── index.html                ✅ Static sortable/filterable table dashboard
+│       ├── index.html                ✅ Static sortable/filterable table dashboard
+│       └── grafana/                  ✅ Importable dashboards (roofline · mxu_heatmap ·
+│                                        latency_violins · failures · cost · README)
 │
-├── tests/                            ✅ 97 unit tests (no JAX/GPU required)
+├── tests/                            ✅ ~180 unit tests (no JAX/GPU required)
 │   ├── conftest.py
 │   ├── test_stats.py
 │   ├── test_lineage.py
 │   ├── test_compile_controller.py
 │   ├── test_registry.py
 │   ├── test_runner.py
-│   └── test_harness.py
+│   ├── test_harness.py
+│   ├── test_app_probes.py
+│   ├── test_compiler_probes.py
+│   ├── test_cloud_monitoring_probe.py
+│   ├── test_otel_probe.py
+│   └── test_render_results.py
 │
-├── scripts/
-│   ├── gcloud_setup.sh               Enable GCP APIs, set project
-│   ├── provision_tpu.sh              Create preemptible v5e-1 / v6e-1 VM
-│   ├── gcloud_ssh_run.sh             SSH + run script on remote VM
-│   ├── gcloud_upload_data.sh         Upload data to GCS
-│   ├── gcloud_pod_run.sh             Multi-host TPU pod launch
-│   └── teardown_tpu.sh               Delete VM (stop billing)
+├── scripts/                          ✅ Staged pipeline (00 → 71) + cost monitors (90/91/92)
+│   ├── lib/
+│   │   ├── common.sh                 Shared logging/error trap/state helpers
+│   │   └── config.sh                 Defaults: TPU_NAME, ZONES, GCS_BUCKET, prices
+│   ├── README.md                     Stage table + happy path + edge cases
+│   ├── run_all.sh                    Master orchestrator (--suite, --from, --keep-tpu, --dry-run)
+│   ├── render_results.py             Generate results/RESULTS.md + per-run REPORT.md
+│   ├── 00_validate_local.sh          Local preflight (bash, gcloud, python3)
+│   ├── 01_validate_gcp.sh            GCP preflight (billing, APIs, IAM, quota)
+│   ├── 02_validate_bucket.sh         GCS bucket exists + R/W probe
+│   ├── 03_validate_hf.sh             HF_TOKEN valid (optional, for gated models)
+│   ├── 10_setup_bucket.sh            Create gs://rajaghv-tpu-cache (idempotent)
+│   ├── 11_setup_budget.sh            $5/mo budget alert (idempotent, R8)
+│   ├── 20_provision_tpu.sh           v5e-1 spot, multi-zone fallback
+│   ├── 21_wait_tpu_ready.sh          Poll until SSH reachable
+│   ├── 30_deploy_repo.sh             Tar + scp repo to VM
+│   ├── 31_install_deps.sh            pip install jax[tpu] + transformers
+│   ├── 32_mount_gcs.sh               gcsfuse + HF_HOME + JAX_COMPILATION_CACHE_DIR
+│   ├── 40_verify_jax.sh              Confirm jax.devices() shows TPU
+│   ├── 41_run_pytests.sh             pytest tests/ on VM (~180 tests)
+│   ├── 42_dry_run.sh                 Harness --dry-run plan
+│   ├── 50_run_smoke.sh               Smoke suite (1 model, ~8 min, tmux)
+│   ├── 51_run_quick.sh               Quick suite (5 models, ~50 min, tmux)
+│   ├── 60_pull_results.sh            scp runs.jsonl + run_logs/ back
+│   ├── 70_teardown_tpu.sh            Delete VM (stops billing)
+│   ├── 71_verify_teardown.sh         Confirm $0/hr — no leftover resources
+│   ├── 90_status.sh                  Current burn rate (+ MTD if BQ export configured)
+│   ├── 91_predict_cost.sh            Forecast cost of <suite> on <device>
+│   ├── 92_idle_check.sh              Flag VMs running >2h ("possibly forgotten")
+│   ├── gcloud_setup.sh               (legacy) Enable GCP APIs
+│   ├── provision_tpu.sh              (legacy, preserved) — see 20_provision_tpu.sh
+│   ├── teardown_tpu.sh               (legacy, preserved) — see 70_teardown_tpu.sh
+│   ├── gcloud_ssh_run.sh             (utility) SSH + run script on remote VM
+│   ├── gcloud_pod_run.sh             (utility) Multi-host TPU pod launch
+│   └── gcloud_upload_data.sh         (utility) Upload data to GCS
 │
 ├── README.md                         This file
 ├── MEMORY.md                         Fast session startup reference (read first)
@@ -428,6 +536,33 @@ tpu/                                  (github.com/rajaghv-dev/tpu)
 | Colab Pro (TPU + GPU access) | $9.99/month |
 | Local RTX 3080 / 4090 / B200 | electricity only (~$0.07/kWh in India) |
 
+### Cost guardrails
+
+- **Forecast first:** `./scripts/91_predict_cost.sh <suite> <device>` prints
+  estimated wall-time + USD before you provision.
+- **Burn check while running:** `./scripts/90_status.sh` totals the current
+  hourly rate from live resources (no BQ export needed). With
+  `BILLING_BQ_TABLE` set it also queries month-to-date.
+- **Forgotten-VM check:** `./scripts/92_idle_check.sh` flags VMs/TPUs running
+  >2h. Add to cron daily for cheap insurance against the $126/week
+  "left a v6e on overnight" failure mode.
+- **Budget alert:** `./scripts/11_setup_budget.sh` creates a $5/month soft
+  alert (50/90/100% email thresholds). Manual setup if your account lacks
+  `roles/billing.user` on the billing account.
+- **Teardown verification:** `./scripts/71_verify_teardown.sh` lists every
+  remaining billable resource (TPUs, VMs, idle reserved IPs, orphan disks)
+  so you know the bill is $0/hr.
+
+### Region note (ADR-006 vs current GCP availability)
+
+ADR-003 + ADR-006 specify `us-central1` for both the TPU and the GCS model
+cache (free intra-region reads). As of 2026-05, GCP no longer offers
+`v5litepod-1` capacity in `us-central1`. The default zone list in
+`scripts/lib/config.sh` is `us-east5-{a,b,c}` → `us-west4-{a,b}` →
+`us-west1-c`. The bucket region defaults to `us-central1` per the ADR; this
+is a legitimate revisit point — see the comment block at the top of
+`scripts/lib/config.sh` for the trade-off.
+
 ---
 
 ## Status
@@ -440,7 +575,9 @@ tpu/                                  (github.com/rajaghv-dev/tpu)
 | Model registry — 5 Stage 1 models | ✅ Complete (2026-04-29) |
 | Observe: stats, lineage, compile_controller | ✅ Complete (2026-04-29) |
 | Results dashboard — table view | ✅ Complete (2026-04-29) |
-| Unit tests (97, no GPU required) | ✅ Complete (2026-04-29) |
+| Unit tests (~180, no GPU required) | ✅ Complete (2026-04-29) |
+| Probe-based observability layer | ✅ Complete (2026-05-06) |
+| Grafana dashboards (importable) | ✅ Complete (2026-05-06) |
 | Multi-path: Paths 2+3 (JAX+GPU, PyTorch+GPU) | Stage 2 |
 | System monitor (GPU SM%, MXU%, power, thermals) | Stage 2 |
 | Profiler + FLOPs counter + roofline | Stage 3 |

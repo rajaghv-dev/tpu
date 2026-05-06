@@ -28,6 +28,7 @@ Inference benchmark: TPU vs GPU. 75 models. 5 execution paths. 9 experiment dime
 Evidence-backed. Full traceability. Beginner→expert curriculum included.
 Training examples 01–08 exist and are complete.
 **Stage 1 COMPLETE (2026-04-29):** benchmarks/harness.py + runner.py + observe/ + models/registry.yaml + results/dashboard/ + 97 tests.
+**Stage 1.5 COMPLETE (2026-05-06):** Probe ABC + 7 probes (OTel, CloudMonitoring, Timing, Memory, InputFingerprint, HloDump, JaxProfiler) + 5 Grafana dashboards + 22 staged GCP scripts + BenchmarkError. Test count: 124 → ~180. First TPU smoke (BERT-base BF16 on v5e-1): p50=0.64ms, CV=1.31%, 5,261 samp/s, $0.00056/run, $0/hr post-teardown verified.
 
 ---
 
@@ -148,25 +149,34 @@ cost_per_1k_samples_usd
 
 ## OBSERVABILITY MODULES (all gaps addressed)
 
-observe/system_monitor.py  → pynvml (GPU SM%, power, temp, clock) + Cloud Monitoring (TPU MXU%)
-observe/flops_counter.py   → jax.make_jaxpr → HLO FLOPs; fvcore for PyTorch
-observe/stats.py           → n=3 runs, Grubbs outlier test, CV check
-observe/compile_controller.py → clear XLA cache; measure first vs subsequent compile
-observe/memory_profiler.py → timeline + per-component breakdown
-observe/numerics.py        → L2 norm + cosine sim vs FP32 reference
-observe/lineage.py         → git SHA + HF revision + seed + env hash
-observe/tracer.py          → jax.profiler / torch.profiler / torch_xla.profiler
-observe/hlo_analyser.py    → parse XLA HLO → count fusion groups, kernel launches
+observe/probe.py           → ✅ DONE — Probe ABC + registry + 5 fanout helpers (Stage 1.5)
+observe/otel_probe.py      → ✅ DONE — OTLP spans + histograms + counters
+observe/cloud_monitoring_probe.py → ✅ DONE — TPU MXU% / GPU SM% / power / thermal
+observe/timing_probe.py    → ✅ DONE — per-phase wall-clock, cold vs warm
+observe/memory_probe.py    → ✅ DONE — peak HBM + allocator timeline
+observe/input_fingerprint_probe.py → ✅ DONE — input SHA + shape + dtype
+observe/hlo_dump_probe.py  → ✅ DONE — XLA HLO text + after-optimization dump
+observe/jax_profiler_probe.py → ✅ DONE — jax.profiler trace.pb
+observe/stats.py           → ✅ DONE — n=3 runs, Grubbs outlier test, CV check
+observe/compile_controller.py → ✅ DONE — clear XLA cache; first vs subsequent compile
+observe/lineage.py         → ✅ DONE — git SHA + HF revision + seed + env hash
+observe/system_monitor.py  → Stage 2 — pynvml (GPU eager-mode counters)
+observe/flops_counter.py   → Stage 3 — jax.make_jaxpr → HLO FLOPs; fvcore for PyTorch
+observe/numerics.py        → Stage 6 — L2 norm + cosine sim vs FP32 reference
+observe/tracer.py          → SUPERSEDED by jax_profiler_probe (kept name reserved for torch)
+observe/hlo_analyser.py    → Stage 3 — parse HLO → count fusion groups, kernel launches
 
 ---
 
 ## 15 GAPS — ALL ADDRESSED
 
 C1(FLOPs counter)→Stage3, C2(multi-run stats)→Stage1, C3(compile cache)→Stage1,
-C4(thermal)→Stage2, C5(hw utilisation)→Stage2, I1(prefill/decode)→Stage2,
-I2(input rotation)→Stage2, I3(MoE handling)→Stage6, I4(input seed)→Stage1,
-I5(XLA fusion)→Stage3, I6(HF API split)→Stage7, I7(power)→Stage3,
-N1(bs sweep)→Stage2, N2(repro suite)→Stage1, N3(cache size)→Stage3
+C4(thermal)→Stage2, C5(hw utilisation)→addressable now via CloudMonitoringProbe (was Stage2),
+I1(prefill/decode)→Stage2, I2(input rotation)→Stage2, I3(MoE handling)→Stage6,
+I4(input seed)→Stage1, I5(XLA fusion)→addressable now via HloDumpProbe (was Stage3),
+I6(HF API split)→Stage7, I7(power)→addressable now via CloudMonitoringProbe (was Stage3),
+N1(bs sweep)→Stage2, N2(repro suite)→Stage1,
+N3(cache size)→addressable now via JaxProfilerProbe trace (was Stage3)
 
 ---
 
@@ -182,9 +192,27 @@ prompts.md    — P22-P40 added: Stage 1 build, observability, debugging, valida
 
 ## STAGED BUILD PLAN — STATUS
 
-Stage 1: Foundation (harness.py, runner.py, 5 models, Path 1, table dashboard) — **COMPLETE 2026-04-29**
-Stage 2: Multi-path (Paths 2+3, system_monitor, 15 models, heatmap) — NOT STARTED ← NEXT
+Stage 1:   Foundation (harness.py, runner.py, 5 models, Path 1, table dashboard) — **COMPLETE 2026-04-29**
+Stage 1.5: Probe layer (Probe ABC + 7 probes + Grafana) + 22 GCP scripts + first TPU smoke — **COMPLETE 2026-05-06**
+Stage 2:   Multi-path (Paths 2+3, system_monitor eager, 15 models, heatmap) — NOT STARTED ← NEXT
 Stage 3–9: Not started. See context.md §10 for full descriptions.
+
+---
+
+## PROBE QUICK REFERENCE
+
+probe.py                  ABC + register(probe); fanout swallows probe exceptions (safe)
+OTelProbe                 OTLP spans/histograms/counters → Grafana Cloud (cross-run viz)
+CloudMonitoringProbe      TPU MXU%, GPU SM%, power, thermal from cloud APIs (gaps C5/I7)
+TimingProbe               per-phase wall-clock, cold vs warm compile split
+MemoryProbe               peak HBM + allocator timeline (use when investigating OOM/near-OOM)
+InputFingerprintProbe     input tensor SHA + shape + dtype (lineage; default-on)
+HloDumpProbe              XLA HLO text + after-optimization (gap I5; use when fusion changes)
+JaxProfilerProbe          jax.profiler trace.pb → TensorBoard (use for kernel-level deep dive)
+
+Each probe writes `<probe_name>.json` to `results/run_logs/<run_id>/`.
+Register: `from observe.probe import register; register(TimingProbe())`
+Default-on for smoke/quick: Timing, Memory, InputFingerprint. Others are opt-in (overhead).
 
 ---
 

@@ -410,3 +410,71 @@
 **Revisit trigger.** A novel-arch class consumes >20% of total stage time without producing transferable insight — demote it.
 
 ---
+
+## ADR-014 — Probe-based observability extension hooks
+
+**Decision.** Observability is extended via a **`Probe` abstract base class** with lifecycle hooks (`before_run`, `after_run`, `before_phase`, `after_phase`, `on_error`, `write_log`), a module-level registry, and a fanout layer in `runner.run_experiment` / `phase()` that calls every registered probe. The fanout **swallows exceptions raised by probes** so a buggy probe can never fail a benchmark. Each probe writes its own `<name>.json` to `results/run_logs/<run_id>/`.
+
+**Status.** Accepted (2026-05-06).
+
+**Context.** Stage 1 shipped a small fixed set of observability modules (`stats`, `lineage`, `compile_controller`) called directly from the runner. As we plan Stages 2–9, the pressure to add more telemetry — TPU MXU%, GPU SM%, HLO dumps, profiler traces, OTel spans, input fingerprints — would force `runner.py` to grow with conditional imports and try/except blocks for every signal. We need a single extension point so adding a new signal does not touch the runner.
+
+**Decision rationale.**
+- Keeps `runner.run_experiment` small and focused on the benchmark protocol; signals are bolted on, not woven in.
+- The hook surface (6 methods, mostly no-op by default) is small enough to learn in 5 minutes — a probe is implementable in <50 lines.
+- A registry + fanout means new probes activate by import + `register()`, no edits elsewhere.
+- Per-run JSON output (one file per probe) keeps each signal independently consumable; nothing in the dashboard pipeline depends on aggregating across probes at write time.
+- Swallowing probe exceptions is a hard requirement: a half-finished `JaxProfilerProbe` should never lose us a 90-second TPU run.
+
+**Alternatives considered.**
+1. *Callback list in the runner.* Rejected — flat callbacks lose the lifecycle distinction (run-level vs phase-level vs error). We'd end up reinventing the contract anyway.
+2. *Monkey-patch `runner.run_experiment`.* Rejected — invisible at the call site, hostile to debugging, breaks if the runner is import-cached.
+3. *Subclass `Runner` per signal.* Rejected — multiple inheritance to combine probes, and the runner is currently a function not a class. Forcing the redesign now is over-fit to a hypothetical.
+4. *External wrapper that re-runs the benchmark for each signal.* Rejected — multiplies cost and breaks the n=3 statistical contract.
+
+**Consequences.**
+- Enables: new signals via a tiny PR-sized change; clean per-probe JSON; safe failure isolation.
+- Constrains: per-phase fanout adds a small constant overhead (microseconds) even when probes are no-ops; acceptable given experiments are 1–3 minutes. Probes that hold cross-run global state (e.g., a counter) require careful reset logic.
+
+**Risks.**
+- Probes reading global state across runs (e.g., a probe that caches a singleton client) can silently leak state between experiments. Mitigated by a `before_run(ctx)` reset hook and a tests/probes/parity test that runs a probe twice and asserts identical output for identical inputs.
+- A probe that quietly catches its own exception inside `write_log` may produce an empty file. Mitigated by the fanout logging a WARN to stderr whenever a probe raises, and by a smoke-suite assertion that every registered probe wrote a non-empty JSON.
+
+**Revisit trigger.** Once we have **>12 probes**, consider a richer pipeline (priority ordering, dependency declaration between probes, async fanout). Below that count the flat registry is fine.
+
+---
+
+## ADR-015 — OpenTelemetry + Grafana for cross-run visualisation
+
+**Decision.** Cross-run visualisation uses **OpenTelemetry** (SDK emits spans, histograms, and counters via OTLP) feeding **Grafana Cloud Free tier** as the canonical destination, with a self-hosted Grafana as the documented fallback. Five Grafana JSON dashboards (`roofline`, `mxu_heatmap`, `latency_violins`, `failures`, `cost`) are committed under `results/dashboard/grafana/` and importable in one click. TPU silicon metrics (MXU%, HBM throughput, power) come from Google Cloud Monitoring as a second Grafana datasource.
+
+**Status.** Accepted (2026-05-06).
+
+**Context.** The Stage 1 static HTML dashboard (ADR-008) is fine for browsing one snapshot of `runs.jsonl`, but does not let us answer "did p99 latency for BERT-base on v5e-1 BF16 trend up over the last 30 commits?" or "where in the run timeline did MXU% drop?". As soon as we have >50 runs and probes emitting time-series telemetry (Stage 1.5), a static page is the wrong tool.
+
+**Decision rationale.**
+- OTel is the open standard; emitting OTel locks us into nothing — we can swap Grafana for Datadog / Honeycomb / Jaeger later without changing any probe.
+- Grafana Cloud Free tier (10K series, 50 GB logs, 14-day retention) is enough for a personal benchmark project at any plausible run rate.
+- Grafana has first-class Cloud Monitoring integration, so TPU silicon metrics show up alongside our application telemetry without bridging code.
+- Committing dashboard JSONs in-repo means a fresh checkout + `grafana-cli import` reproduces the entire visualisation stack — no clickops, no drift.
+- Self-hosted fallback (single-binary Grafana OSS + a local Prometheus or Tempo) is documented for the offline / privacy-sensitive case, but is not the default because we do not want to operate it.
+- The static HTML dashboard (ADR-008) is preserved for the headline "what does this repo show" page; Grafana is for the operator/researcher.
+
+**Alternatives considered.**
+1. *Cloud Monitoring alone (no Grafana).* Rejected — the query/visualisation UX is poor, and cross-account sharing is awkward. Our application telemetry would have nowhere to live.
+2. *Bespoke dashboard (extend the static HTML).* Rejected — would reimplement Grafana's panels at a small fraction of the quality; not the lesson we are here to learn.
+3. *Datadog / Honeycomb.* Rejected on cost: both are excellent but priced for production, not for a 75-model personal benchmark with 10–100 runs/week. Re-evaluable in the revisit trigger.
+4. *Prometheus + Grafana fully self-hosted.* Considered. Rejected as the default because we'd be running a metrics stack to look at metrics about benchmarks; managed service is the right tradeoff at our scale.
+
+**Consequences.**
+- Enables: cross-run trend analysis; alongside-Cloud-Monitoring TPU silicon view; standard OTel emission portable to any backend; one-click dashboard reproduction.
+- Constrains: one more service to keep alive (Grafana Cloud account); a second source of truth alongside `runs.jsonl` (mitigated by treating Grafana as a view, never a store — `runs.jsonl` remains canonical). No privacy concerns since metrics are not user data.
+
+**Risks.**
+- Free-tier limits exhausted by accidentally high-cardinality labels (e.g., emitting `run_id` as a metric label). Mitigated by a `tests/observability/cardinality.py` test that fails CI if a series count > 5000.
+- Grafana Cloud Free tier is altered or discontinued. Mitigated by the documented self-hosted fallback and by the fact that dashboard JSONs are portable to OSS Grafana.
+- OTel SDK version churn breaking the OTLP exporter. Mitigated by pinning `opentelemetry-sdk` and `opentelemetry-exporter-otlp` in `requirements.txt` and by treating OTel emission as an opt-in probe — the benchmark runs without it.
+
+**Revisit trigger.** At **>100 runs/month** sustained, consider Grafana Cloud paid tier (better retention) or a self-hosted stack — at that volume the trade matrix flips. Also revisit if a dashboard becomes a primary publication artifact (e.g., a public roofline page) and we want a custom domain / auth model that Grafana Cloud Free does not offer.
+
+---
