@@ -29,6 +29,7 @@ Evidence-backed. Full traceability. Beginner→expert curriculum included.
 Training examples 01–08 exist and are complete.
 **Stage 1 COMPLETE (2026-04-29):** benchmarks/harness.py + runner.py + observe/ + models/registry.yaml + results/dashboard/ + 97 tests.
 **Stage 1.5 COMPLETE (2026-05-06):** Probe ABC + 7 probes (OTel, CloudMonitoring, Timing, Memory, InputFingerprint, HloDump, JaxProfiler) + 5 Grafana dashboards + 22 staged GCP scripts + BenchmarkError. Test count: 124 → ~180. First TPU smoke (BERT-base BF16 on v5e-1): p50=0.64ms, CV=1.31%, 5,261 samp/s, $0.00056/run, $0/hr post-teardown verified.
+**Stage 1.6 COMPLETE (2026-05-10):** Tier 3 closeout. R19 (`results/stage1_interpretation.md`) + R22 (`context.md` §19 aha moments) + R24 (`.github/workflows/smoke_on_push.yml`) + R26 (LESSON_PLAN retrospective). R20/R21/R23 scripted (`scripts/53_run_bf16_validation.sh`, `54_thermal_check.sh`, `55_repro_validation.sh` + `docs/runbooks/tier3_tpu_session.md`). **Training observability layer:** `train/runner.py` + `train/harness.py` + `train/registry.yaml` (bert_finetune). Probe ABC extended with `before_step` / `after_step` / `record_metric`. New training probes: `TrainingMetricsProbe`, `StepTimingProbe`, `CheckpointProbe`. Test count: 180 → 224 (+32 new training tests, all pass). Tag: `stage1-complete`.
 
 ---
 
@@ -194,6 +195,7 @@ prompts.md    — P22-P40 added: Stage 1 build, observability, debugging, valida
 
 Stage 1:   Foundation (harness.py, runner.py, 5 models, Path 1, table dashboard) — **COMPLETE 2026-04-29**
 Stage 1.5: Probe layer (Probe ABC + 7 probes + Grafana) + 22 GCP scripts + first TPU smoke — **COMPLETE 2026-05-06**
+Stage 1.6: Tier 3 closeout + train/ observability harness + 3 training probes — **COMPLETE 2026-05-10** (tag: stage1-complete)
 Stage 2:   Multi-path (Paths 2+3, system_monitor eager, 15 models, heatmap) — NOT STARTED ← NEXT
 Stage 3–9: Not started. See context.md §10 for full descriptions.
 
@@ -202,6 +204,8 @@ Stage 3–9: Not started. See context.md §10 for full descriptions.
 ## PROBE QUICK REFERENCE
 
 probe.py                  ABC + register(probe); fanout swallows probe exceptions (safe)
+                          Hooks: before_run/after_run, before_phase/after_phase, on_error,
+                                 before_step/after_step, record_metric (training only)
 OTelProbe                 OTLP spans/histograms/counters → Grafana Cloud (cross-run viz)
 CloudMonitoringProbe      TPU MXU%, GPU SM%, power, thermal from cloud APIs (gaps C5/I7)
 TimingProbe               per-phase wall-clock, cold vs warm compile split
@@ -209,21 +213,31 @@ MemoryProbe               peak HBM + allocator timeline (use when investigating 
 InputFingerprintProbe     input tensor SHA + shape + dtype (lineage; default-on)
 HloDumpProbe              XLA HLO text + after-optimization (gap I5; use when fusion changes)
 JaxProfilerProbe          jax.profiler trace.pb → TensorBoard (use for kernel-level deep dive)
+TrainingMetricsProbe      per-step loss/lr/grad_norm/accuracy + ad-hoc record_metric (training)
+StepTimingProbe           per-step wall-clock, samples/sec, tokens/sec, p95/p99 (training)
+CheckpointProbe           checkpoint write events: duration, size_bytes, path (training)
 
 Each probe writes `<probe_name>.json` to `results/run_logs/<run_id>/`.
-Register: `from observe.probe import register; register(TimingProbe())`
-Default-on for smoke/quick: Timing, Memory, InputFingerprint. Others are opt-in (overhead).
+Register: `from observe.probe import register_probe; register_probe(TimingProbe())`
+Default-on (inference smoke/quick):  Timing, Memory, InputFingerprint.
+Default-on (training smoke/quick):   Timing, Memory, InputFingerprint, TrainingMetrics, StepTiming, Checkpoint.
+Heavy probes (Hlo, JaxProfiler, OTel, CloudMonitoring) are opt-in via `--probes full`.
 
 ---
 
 ## SUITE DEFINITIONS
 
-smoke: 1 model, FP32+BF16, ~8min, $0.05
-quick: 6 models (1/domain), BF16, ~50min, $0.30
-domain: all in 1 domain, FP32+BF16, ~60min, $0.36
-arch: novel arches, BF16, ~40min, $0.24
-llm: all decoders, BF16 prefill+decode, ~2hrs, $0.72
-full: all 75 models, all variants, ~8hrs, $2.88
+Inference (`benchmarks/harness.py`):
+  smoke: 1 model, FP32+BF16, ~8min, $0.05
+  quick: 6 models (1/domain), BF16, ~50min, $0.30
+  domain: all in 1 domain, FP32+BF16, ~60min, $0.36
+  arch: novel arches, BF16, ~40min, $0.24
+  llm: all decoders, BF16 prefill+decode, ~2hrs, $0.72
+  full: all 75 models, all variants, ~8hrs, $2.88
+
+Training (`train/harness.py`):
+  smoke: bert_finetune, 10 steps, BF16, ~1min, $0.01
+  quick: bert_finetune, 200 steps, BF16, ~5min, $0.03
 
 ---
 

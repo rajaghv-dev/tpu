@@ -1,0 +1,89 @@
+# R24 — CPU-JAX smoke on push
+#
+# Purpose: catch regressions in the harness, registry, lineage, probe layer
+# BEFORE they break the next TPU session. No GPU/TPU required — runs on
+# free GitHub-hosted ubuntu-latest with JAX_PLATFORMS=cpu.
+#
+# What this catches:
+#   - Import errors (e.g., a stale Flax symbol from transformers bump)
+#   - Registry schema breakage (yaml parse, missing required keys)
+#   - Probe contract changes that break the runner
+#   - Anything pytest covers (97 tests at Stage 1, ~180 at Stage 1.5)
+#   - The harness's --dry-run path (config building, suite resolution)
+#
+# What this does NOT catch (by design):
+#   - TPU-specific compile failures (no TPU runner)
+#   - Performance regressions (no measurement on CPU runner)
+#   - HF model download issues (we don't actually download in --dry-run)
+
+name: smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  JAX_PLATFORMS: cpu
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.stage1.lock.txt
+
+      - name: Run pytest
+        run: pytest tests/ -q --tb=short
+
+      - name: Lineage sanity check (git_sha must match git log)
+        run: |
+          python - <<'PY'
+          import subprocess
+          from observe.lineage import get_git_sha
+          expected = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          actual = get_git_sha()
+          assert actual == expected, f"lineage drift: {actual!r} != {expected!r}"
+          print(f"lineage OK: {actual}")
+          PY
+
+  dry-run-harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install minimal deps for harness CLI parse
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.stage1.lock.txt
+
+      - name: Smoke suite — dry-run only (no JAX/HF downloads)
+        run: |
+          python -m benchmarks.harness --suite smoke --device cpu --dry-run
+
+      - name: Quick suite — dry-run only
+        run: |
+          python -m benchmarks.harness --suite quick --device cpu --dry-run

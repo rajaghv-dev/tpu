@@ -1,0 +1,50 @@
+# Training task registry — Stage 1.6 (training observability layer).
+#
+# Each entry is a complete training-experiment specification. Synthetic
+# inputs (numpy seed=42) — same hardware-only-comparison philosophy as
+# benchmarks/. No real datasets.
+#
+# Schema:
+#   id              — registry key
+#   hf_id           — HuggingFace pretrained checkpoint to start from
+#   task            — sequence-classification | causal-lm | image-classification
+#   domain          — for dashboard grouping
+#   precision       — bf16 default; fp32 for validation
+#   total_params_M, active_params_M — for cost/MFU dashboards
+#   input_type      — text | image | image_text
+#   default_seq_len, vocab_size — synthetic input shape
+#   default_batch_size — per-step batch
+#   num_labels      — for classification heads
+#   default_steps   — training-loop length (smoke shortens this)
+#   default_eval_steps — eval phase length
+#   default_lr      — peak LR
+#   default_warmup_steps — LR linear warmup
+#   default_weight_decay
+#   default_optimizer — adamw | sgd
+#   gated, risk_level — same semantics as models/registry.yaml
+
+tasks:
+
+  - id: bert_finetune
+    hf_id: bert-base-uncased
+    task: sequence-classification
+    domain: nlp_encoder
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 110
+    active_params_M: 110
+    input_type: text
+    vocab_size: 30522
+    default_seq_len: 128
+    default_batch_size: 32
+    num_labels: 2
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 2.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw

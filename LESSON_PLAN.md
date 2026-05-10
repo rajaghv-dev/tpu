@@ -1469,3 +1469,57 @@ Week 6  ─── Module 14–15:  TCO analysis, research workflow, contributing
 *This lesson plan is a living document. As new experiments are run and new insights are added
 to the repo, new modules will be added here. Check `prompts.md` for the history of how
 the repo's scope evolved.*
+
+---
+
+## Stage 1 Retrospective (2026-05-10) — Closes R26
+
+> Written before starting Stage 2 work, per RECOMMENDATIONS.md R26. The point is to surface
+> assumptions Stage 1 made that Stage 2 should not silently inherit.
+
+### What went well
+
+- **The 9-phase protocol holds.** First successful TPU smoke (BERT-base BF16 on v5e-1) hit p50=0.64 ms with CV=1.31% — far inside the <10% gate. The warmup count (20), block count (3), per-block measurement count (100) are all correctly calibrated for transformer encoders. No "is this number trustworthy" debate.
+- **Failure capture works as designed.** Run 1's `transformers==5.8.0` import error produced a clean `error.json` + a failure stub in `runs.jsonl` linked by `run_id`. Triage took 30 seconds; no need to re-run.
+- **Cost is a non-issue.** $0.00056 per experiment. Even the full 75-model registry across all variants is bounded by single-digit dollars. Wall-clock per run (1–3 min), not money, is the binding constraint.
+- **The probe ABC is a good extension point.** Stage 1.5 added 7 probes without changing one line of `runner.run_experiment`. The `with phase("name"):` context manager + `fanout_*` helpers cleanly separate measurement from observation. Stage 2 can add `system_monitor` the same way.
+- **MD-driven planning paid off.** DECISIONS / RISKS / QUESTIONS / RECOMMENDATIONS were not theatre — R20–R26 were genuinely the right pre-Stage-2 checklist. The interpretation doc (`results/stage1_interpretation.md`) and aha moments section (`context.md` §19) only exist because R19/R22 were on the list.
+
+### What cost more than expected
+
+- **Deploy-vs-pin hygiene.** R9 (pin every dependency) was honoured *in the repo* but `31_install_deps.sh` did not consume `requirements.stage1.lock.txt` strictly. Result: Run 1 failed because the TPU VM resolved `transformers==5.8.0`. The lock file is worth nothing without an enforcing install path. **Stage 2 must close this loop on day 1.**
+- **Tarball deploy strips `.git/`.** `30_deploy_repo.sh` was tuned for speed (~30s vs ~3min) but loses provenance. Every successful TPU run shows `git_sha="unknown"` in `lineage.json` and `runs.jsonl`. The whole evidence chain (R13, ADR-007 traceability) silently breaks. Cheap to fix (env-var hand-off) but it was missed because no test caught it.
+- **Probes were registered but not active.** The smoke run produced no `timing.json`, no `memory.json`, no `input_fingerprint.json`. The probe layer is wired into `runner.py` but the harness CLI doesn't auto-register the default-on probe set (Timing + Memory + InputFingerprint, per MEMORY.md). One-line fix in `harness.py`; should be done before Stage 2.
+- **`compile_cache_hit` field is misnamed for Stage 1 semantics.** What we report is "cold compile after deliberate cache clear", not "did the persistent GCS-backed cache help". The persistent cache (R4) isn't even wired yet. Field name should be split or renamed before Stage 2 schema lands in dashboards downstream.
+
+### What I'd change in Stage 2's plan
+
+1. **Day-1 of Stage 2: close the four soft points above.** Specifically:
+   - `31_install_deps.sh` enforces `requirements.stage1.lock.txt` strictly.
+   - `30_deploy_repo.sh` exports `GIT_SHA` and `harness.py --git-sha` plumbs it into lineage.
+   - `harness.py` auto-registers `[TimingProbe(), MemoryProbe(), InputFingerprintProbe()]` for `--suite smoke|quick`.
+   - Schema bump: rename `compile_cache_hit` → `cold_compile_explicitly_cleared` + add `persistent_cache_hit`.
+2. **Stage 2 first run = re-run smoke with default-on probes** *before* touching Path 2/3. R19's sign-off requires evidence that the probe layer actually fires on TPU; right now we have evidence that it loads.
+3. **Don't gate Stage 2 on R20/R21/R23.** Those need a TPU/B200 session. Tier 3 prepares the scripts (`scripts/53_run_bf16_validation.sh`, etc.) but the user can run them when convenient. Stage 2 development can proceed locally on CPU-JAX.
+4. **Add `system_monitor` (`pynvml` GPU eager-mode counters) early.** `cloud_monitoring_probe.py` (Stage 1.5) reads from cloud APIs — useful for v5e-1 but useless for the local 3080/4090. Stage 2 adds GPU paths, so a per-process GPU sampler is gating.
+5. **Heatmap dashboard before more models.** 5 models × 1 dimension is hard to triage in a table; 15 models × 2 dimensions is impossible. Build the heatmap *after* the second model loads cleanly on Path 2, not at the end.
+
+### ADRs that may need revisit
+
+- **ADR-007 (results format = JSONL).** Still good for accumulation, but the schema is creeping (probe outputs spread across `runs.jsonl` + `run_logs/<id>/*.json`). Stage 2 should formalise that `runs.jsonl` is the index and per-probe JSON is the body — and write that contract into ADR-007 explicitly.
+- **No new ADRs needed for Stage 2** — Path 2/3 are within the original scope.
+
+### Tier 3 closeout status
+
+| Rec | Status |
+|---|---|
+| R19 (interpretation doc) | ✅ done — `results/stage1_interpretation.md` |
+| R20 (BF16 vs FP32 vs MIXED) | 📜 scripted — runs on next TPU session |
+| R21 (thermal throttle on B200) | 📜 scripted — runs on next B200 session |
+| R22 (aha moments) | ✅ done — `context.md` §19 |
+| R23 (cross-zone reproducibility) | 📜 scripted — runs on next TPU session |
+| R24 (CI smoke on push) | ✅ done — `.github/workflows/smoke_on_push.yml` |
+| R25 (lock + tag) | ✅ done — tagged `stage1-complete` after this commit |
+| R26 (this retrospective) | ✅ done |
+
+— end of Stage 1 retrospective —

@@ -82,18 +82,55 @@ Single repo to understand and benchmark inference across:
 │   ├── run_all.sh                   master pipeline
 │   ├── render_results.py            generates RESULTS.md + per-run REPORT.md
 │   └── lib/{common,config}.sh
+├── train/                           ✅ Stage 1.6 — runner.py + harness.py + registry.yaml (bert_finetune)
+├── docs/runbooks/                   ✅ Stage 1.6 — tier3_tpu_session.md (R20/R21/R23 checklist)
+├── .github/workflows/               ✅ Stage 1.6 — smoke_on_push.yml (R24 — CPU-JAX CI)
 ├── README.md                        Landing page — Quick Start, harness table, all domains
-├── LESSON_PLAN.md                   15-module beginner→expert curriculum
+├── LESSON_PLAN.md                   15-module beginner→expert curriculum (+ Stage 1 retrospective)
 ├── DECISIONS.md                     13 ADRs
 ├── RISKS.md                         25+ risks
 ├── QUESTIONS.md                     23 open questions
-├── RECOMMENDATIONS.md               3-tier prioritised actions
-├── context.md                       Full project context (700+ lines)
+├── RECOMMENDATIONS.md               3-tier prioritised actions (Tier 3 closed Stage 1.6)
+├── context.md                       Full project context (700+ lines, §19 aha moments)
 ├── prompts.md                       All prompts P1–P49 + standing instructions
 ├── SESSION.md                       This file — session continuity
 ├── MEMORY.md                        Dense 3-min fast startup reference
 └── requirements.txt
 ```
+
+**Session 5 additions (2026-05-10) — Stage 1.6 (Tier 3 closeout + training observability):**
+
+- **Tier 3 closed:**
+  - R19 — `results/stage1_interpretation.md` (interpretation of the 2 existing TPU runs).
+  - R22 — `context.md` §19 added with 5 empirically-confirmed aha moments from BERT v5e-1 smoke.
+  - R24 — `.github/workflows/smoke_on_push.yml` runs pytest + `--dry-run` smoke on every push.
+  - R25 — Tag `stage1-complete` applied locally + pushed.
+  - R26 — `LESSON_PLAN.md` Stage 1 retrospective (what went well, what cost more, ADRs to revisit).
+  - R20/R21/R23 — scripted but not yet run (need TPU/B200 session):
+    - `scripts/53_run_bf16_validation.sh` (R20: BF16 vs FP32 on vit_b16 v5e-1).
+    - `scripts/54_thermal_check.sh` (R21: 1-Hz nvidia-smi sampler around quick suite on B200).
+    - `scripts/55_repro_validation.sh` (R23: re-run smoke on a fresh VM in a different zone).
+    - `docs/runbooks/tier3_tpu_session.md` orchestrates them in order.
+- **Training observability layer (`train/`):**
+  - `train/runner.py` — `TrainingExperimentConfig` + `run_training()` with phases
+    `preflight → data_load → model_load → compile → warmup → train_loop → eval → checkpoint → postflight`.
+    Reuses `phase()` and `BenchmarkError` from `benchmarks/runner.py` (one source of truth for
+    structured exception capture).
+  - `train/harness.py` — CLI mirroring `benchmarks/harness.py`. `--probes default|none|full`
+    auto-registers the right probe set. Output → `results/training_runs.jsonl` (separate index).
+  - `train/registry.yaml` — `bert_finetune` (sequence-classification on synthetic GLUE-shaped inputs).
+- **Probe ABC extended with step-level hooks:**
+  - New methods (no-op default): `before_step(step)`, `after_step(step, metrics)`, `record_metric(name, value, step)`.
+  - New fan-outs in `observe/probe.py`: `fanout_before_step`, `fanout_after_step`, `fanout_record_metric`.
+  - Existing inference probes are unaffected (no-op defaults).
+- **Three new training-specific probes:**
+  - `observe/training_metrics_probe.py` — per-step loss/lr/grad_norm/accuracy + ad-hoc record_metric.
+  - `observe/step_timing_probe.py` — per-step wall-clock, samples/sec, tokens/sec, p95/p99,
+    rolling-window throughput. Distinguishes warmup steps (first 5) from steady state.
+  - `observe/checkpoint_probe.py` — pairs `checkpoint_write` / `checkpoint_size_bytes` /
+    `checkpoint_path` records by step; also discovers files on disk if the runner forgot to record.
+- **Tests:** 180 → 224 (+32 new). All pass on CPU. New tests in `tests/test_training_probes.py` and
+  `tests/test_train_runner.py`. Buggy-probe-must-not-break-fanout case is explicitly tested.
 
 **Session 4 additions (2026-05-06) — Stage 1.5 + first TPU smoke run COMPLETE:**
 
@@ -188,6 +225,7 @@ staged but not committed. The push command is at the end of this session's work.
 |-------|-------------|--------|
 | 1 | Foundation: harness.py, runner.py, 5 models, Path 1, table dashboard | **COMPLETE (2026-04-29)** |
 | 1.5 | Probe layer (Probe ABC + 7 probes + Grafana dashboards) + GCP scripts + first TPU smoke run | **COMPLETE 2026-05-06** |
+| 1.6 | Tier 3 closeout (R19/R22/R24/R25/R26 done; R20/R21/R23 scripted) + train/ harness + 3 training probes | **COMPLETE 2026-05-10** (tag `stage1-complete`) |
 | 2 | Multi-path: Paths 2+3, system_monitor, 15 models, heatmap dashboard | Not started |
 | 3 | Profiler + Roofline: flops_counter, tracer, hlo_analyser | Not started |
 | 4 | torch_xla: Path 4 | Not started |
@@ -198,6 +236,7 @@ staged but not committed. The push command is at the end of this session's work.
 | 9 | Full registry + GitHub Actions automation | Not started |
 
 **Next coding session starts at Stage 2** (Paths 2+3, observe/system_monitor.py, 15 models, heatmap dashboard).
+**Pre-Stage-2 to-do** (from LESSON_PLAN retrospective): close 4 soft points — strict lockfile install, GIT_SHA hand-off, default-on probe registration in inference harness, `compile_cache_hit` field rename.
 
 ---
 

@@ -103,10 +103,16 @@ results, and tears down. See `scripts/README.md` for the full stage list and
 ```bash
 pip install -r requirements.txt        # includes jax[tpu], transformers, pytest
 
-python benchmarks/harness.py --suite smoke --device tpu
-python benchmarks/harness.py --suite quick --device tpu
-python benchmarks/harness.py --suite quick --device tpu --dry-run    # plan only
-python benchmarks/harness.py --model bert_base --device gpu          # single model
+# Inference benchmarks (Stage 1):
+python -m benchmarks.harness --suite smoke --device tpu
+python -m benchmarks.harness --suite quick --device tpu
+python -m benchmarks.harness --suite quick --device tpu --dry-run    # plan only
+python -m benchmarks.harness --model bert_base --device gpu          # single model
+
+# Training observability (Stage 1.6):
+python -m train.harness --suite smoke --device tpu                   # 10 steps, ~1 min
+python -m train.harness --suite quick --device tpu                   # 200 steps, ~5 min
+python -m train.harness --task bert_finetune --device tpu --probes full --save-checkpoint
 ```
 
 ### Cost monitoring
@@ -143,7 +149,7 @@ export OTEL_SERVICE_NAME=tpu-bench
 
 ```bash
 pip install pytest pyyaml numpy
-pytest tests/ -v              # ~180 tests (probe tests + harness tests)
+pytest tests/ -v              # 224 tests (inference + training + probe tests)
 ```
 
 ### Google Colab Pro

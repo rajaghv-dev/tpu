@@ -117,6 +117,35 @@ class Probe:
         """
         return None
 
+    # ── Step-level hooks (training only) ─────────────────────────────────
+    # The benchmark/inference runner does NOT call these — they exist for
+    # the training runner (train/runner.py) which has a per-step inner loop.
+    # Inference probes that don't override these stay no-ops; training
+    # probes that need per-step data override only what they need.
+    #
+    # Contract:
+    #   before_step(step)        — called before each training step body.
+    #   after_step(step, metrics)— called after each step. metrics is a
+    #                              dict like {"loss": 1.23, "lr": 2e-5,
+    #                              "grad_norm": 0.41}; the runner is free
+    #                              to add or omit keys.
+    #   record_metric(...)       — ad-hoc scalar record outside steps
+    #                              (e.g. eval loss at epoch end).
+
+    def before_step(self, step: int) -> None:
+        """Called immediately before each training step body."""
+
+    def after_step(self, step: int, metrics: Dict[str, Any]) -> None:
+        """Called after each successful training step body."""
+
+    def record_metric(
+        self,
+        name: str,
+        value: Any,
+        step: Optional[int] = None,
+    ) -> None:
+        """Ad-hoc metric — eval loss at epoch end, etc. Not tied to a step."""
+
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 
@@ -211,3 +240,20 @@ def fanout_after_phase(phase_name: str, duration_s: float) -> None:
 def fanout_on_error(phase_name: str, exc: BaseException) -> None:
     for p in _REGISTRY:
         _safe_call(p, "on_error", phase_name, exc)
+
+
+# ── Step-level fan-outs (training only) ───────────────────────────────────────
+
+def fanout_before_step(step: int) -> None:
+    for p in _REGISTRY:
+        _safe_call(p, "before_step", step)
+
+
+def fanout_after_step(step: int, metrics: Dict[str, Any]) -> None:
+    for p in _REGISTRY:
+        _safe_call(p, "after_step", step, metrics)
+
+
+def fanout_record_metric(name: str, value: Any, step: Optional[int] = None) -> None:
+    for p in _REGISTRY:
+        _safe_call(p, "record_metric", name, value, step)
