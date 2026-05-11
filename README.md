@@ -159,6 +159,40 @@ Four pre-baked dashboards: Experiment Timeline, Latency Distribution, Throughput
 
 Design: ADR-016 in DECISIONS.md (supersedes ADR-015's Grafana Cloud default).
 
+### GCS caches (cost reduction — Tier 2 in todo.md)
+
+Three GCS-backed caches amortize re-installation cost across provisions:
+
+| Cache | What | Saves per provision |
+|---|---|---|
+| Wheels | pip wheels for requirements.txt | ~$0.04 (5–10 min) |
+| HF models | downloaded model weights | ~$0.04 (1–2 min/model) |
+| XLA compile | JIT-compiled XLA programs | ~$0.01 (cold compile) |
+
+Build once (after first successful TPU run):
+
+    make cache-wheels-build    # on the TPU VM, after pip install
+    make cache-models-upload   # on the TPU VM, after a benchmark run
+    make cache-xla-upload      # on the TPU VM, after a benchmark run
+
+Inspect: `make cache-status`. Provision script auto-uses caches when their URLs are set.
+
+### Colab Pro path (free TPU iteration — todo.md Tier 3 #9)
+
+Run the same smoke/quick suites on Colab Pro's TPU at $0 marginal cost.
+Open `colab/tpu_benchmark.ipynb` directly:
+https://colab.research.google.com/github/rajaghv-dev/tpu/blob/main/colab/tpu_benchmark.ipynb
+
+Or one-liner in any Colab cell:
+
+    !curl -sL https://raw.githubusercontent.com/rajaghv-dev/tpu/main/scripts/colab_bootstrap.sh | bash -s -- smoke default
+
+Output: same `results/runs.jsonl` + `results/otel/*.jsonl` + per-probe JSON.
+Download the result zip and replay via `./scripts/otel_view.sh` on your laptop.
+
+When to use which: Colab Pro for dev iteration; GCP v5e-1 for measurement-grade
+reproducibility (different hardware, controlled environment). See colab/README.md.
+
 ### Run tests (no GPU/TPU needed)
 
 ```bash

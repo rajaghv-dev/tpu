@@ -1,4 +1,4 @@
-.PHONY: test test-fast test-verbose dry-run smoke-cpu lint dashboard help otel-collect otel-view otel-down gcp-bootstrap gcp-check gcp-budget tpus-kill tpus-list
+.PHONY: test test-fast test-verbose dry-run smoke-cpu lint dashboard help otel-collect otel-view otel-down gcp-bootstrap gcp-check gcp-budget tpus-kill tpus-list cache-env cache-status cache-wheels-build cache-models-upload cache-xla-upload colab-notebook colab-open setup-hf check-hf
 
 # ── Testing ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +54,16 @@ otel-down:
 	## Stop the local Grafana stack
 	./scripts/otel_view.sh --down
 
+# ── HuggingFace auth (gated models: Gemma/LLaMA/PaliGemma) ─────────────────────
+
+setup-hf:
+	## Capture HF PRO token; stores locally + GCP Secret Manager (idempotent)
+	./scripts/setup_hf.sh
+
+check-hf:
+	## Verify HF token (where stored, validity, whoami)
+	./scripts/setup_hf.sh --check
+
 # ── GCP setup (one-time + safety nets) ─────────────────────────────────────────
 
 gcp-bootstrap:
@@ -75,6 +85,41 @@ tpus-list:
 tpus-kill:
 	## PANIC BUTTON: delete all TPU VMs across all zones (with confirmation)
 	./scripts/kill_all_tpus.sh
+
+# ── GCS caches (Tier 2 cost reduction) ─────────────────────────────────────────
+
+cache-env:
+	## Print the cache URLs for the current project
+	./scripts/setup_cache_env.sh
+
+cache-status:
+	## Inventory of all GCS caches (size, items, last sync)
+	./scripts/cache_status.sh
+
+cache-wheels-build:
+	## Build pip wheel cache (run after a successful TPU pip install)
+	./scripts/cache_wheels.sh --build
+
+cache-models-upload:
+	## Sync local HF model cache to GCS (run after a successful run)
+	./scripts/cache_models.sh --upload
+
+cache-xla-upload:
+	## Sync XLA compile cache to GCS
+	./scripts/cache_xla.sh --upload
+
+# ── Colab Pro path (free TPU iteration, todo.md Tier 3 #9) ─────────────────────
+
+colab-notebook:
+	## Open the Colab notebook URL in default browser
+	@echo "Opening: https://colab.research.google.com/github/rajaghv-dev/tpu/blob/main/colab/tpu_benchmark.ipynb"
+	@xdg-open "https://colab.research.google.com/github/rajaghv-dev/tpu/blob/main/colab/tpu_benchmark.ipynb" 2>/dev/null \
+	  || open "https://colab.research.google.com/github/rajaghv-dev/tpu/blob/main/colab/tpu_benchmark.ipynb" 2>/dev/null \
+	  || wslview "https://colab.research.google.com/github/rajaghv-dev/tpu/blob/main/colab/tpu_benchmark.ipynb" 2>/dev/null \
+	  || echo "(no browser opener found — paste the URL manually)"
+
+colab-open: colab-notebook
+	## Alias for colab-notebook
 
 # ── Help ───────────────────────────────────────────────────────────────────────
 
@@ -104,4 +149,18 @@ help:
 	@echo "    make gcp-budget    Create a \$$20/mo billing budget with alerts"
 	@echo "    make tpus-list     List all TPU VMs across all zones"
 	@echo "    make tpus-kill     PANIC BUTTON: delete all TPU VMs"
+	@echo ""
+	@echo "  HuggingFace (gated models — Gemma/LLaMA/PaliGemma):"
+	@echo "    make setup-hf      Capture + validate + store HF PRO token"
+	@echo "    make check-hf      Verify HF token (whoami + storage status)"
+	@echo ""
+	@echo "  Colab Pro path (free TPU iteration, todo.md Tier 3 #9):"
+	@echo "    make colab-notebook  Open the Colab notebook URL in default browser"
+	@echo ""
+	@echo "  GCS caches (Tier 2 cost reduction — see todo.md):"
+	@echo "    make cache-env             Print cache URLs for current project"
+	@echo "    make cache-status          Size + items + last sync of all 3 caches"
+	@echo "    make cache-wheels-build    Build pip wheel cache (run on TPU VM)"
+	@echo "    make cache-models-upload   Sync HF model cache to GCS"
+	@echo "    make cache-xla-upload      Sync XLA compile cache to GCS"
 	@echo ""

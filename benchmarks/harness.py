@@ -23,6 +23,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from benchmarks.runner import BenchmarkError, ExperimentConfig, run_experiment
+from observe.input_fingerprint import InputFingerprintProbe
+from observe.memory_probe import MemoryProbe
+from observe.probe import clear_probes, register_probe
+from observe.timing_probe import TimingProbe
 
 # ── Suite definitions ─────────────────────────────────────────────────────────
 SUITES: Dict[str, Dict[str, Any]] = {
@@ -126,6 +130,54 @@ def append_result(result: dict, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("a") as fh:
         fh.write(json.dumps(result, default=str) + "\n")
+
+
+# ── Probe wiring ──────────────────────────────────────────────────────────────
+
+
+def _register_probe_set(name: str) -> List[str]:
+    """
+    Register a named probe set on the global registry. Mirrors train/harness.py
+    but with inference-appropriate probes (no training-specific signals).
+
+    Sets:
+      none    — clear all
+      default — Timing + Memory + InputFingerprint  (3 generic, low-overhead)
+      full    — default + JaxProfiler + HloDump + CloudMonitoring  (heavy, opt-in)
+
+    OTelProbe is deliberately NOT in any set — the ADR-016 stack (env var
+    TPU_BENCH_OTEL=otlp + observe/otel.py + infra/) is the canonical OTel
+    path for inference. Unifying via OtelStackProbe is ADR-016 follow-up.
+    """
+    clear_probes()
+    if name == "none":
+        return []
+
+    probes = [TimingProbe(), MemoryProbe(), InputFingerprintProbe()]
+    if name == "full":
+        # Heavy / opt-in probes — lazy imports so a missing optional dep
+        # (google-cloud-monitoring) only matters when "full" is asked.
+        try:
+            from observe.jax_profiler_probe import JaxProfilerProbe
+            probes.append(JaxProfilerProbe())
+        except Exception:
+            pass
+        try:
+            from observe.hlo_dump_probe import HloDumpProbe
+            probes.append(HloDumpProbe())
+        except Exception:
+            pass
+        try:
+            from observe.cloud_monitoring_probe import CloudMonitoringProbe
+            probes.append(CloudMonitoringProbe())
+        except Exception:
+            pass
+
+    names: List[str] = []
+    for p in probes:
+        register_probe(p)
+        names.append(p.name)
+    return names
 
 
 # ── Suite runner ──────────────────────────────────────────────────────────────
@@ -299,12 +351,25 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print planned experiments with cost estimate — no model downloads",
     )
+    p.add_argument(
+        "--probes",
+        default="default",
+        choices=["none", "default", "full"],
+        help="Probe set to register (default: default). "
+             "default = Timing+Memory+InputFingerprint; "
+             "full adds JaxProfiler+HloDump+CloudMonitoring. "
+             "OTel emission is controlled separately by TPU_BENCH_OTEL env var.",
+    )
     return p
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    active = _register_probe_set(args.probes)
+    if active:
+        print(f"Probes active: {', '.join(active)}")
 
     n = run_suite(
         suite_name=args.suite,
