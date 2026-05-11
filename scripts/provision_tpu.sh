@@ -182,17 +182,25 @@ fi
 # (per-VM-lifetime; cross-provision persistence requires GCS sync — out of scope).
 REMOTE_PRELUDE='export JAX_COMPILATION_CACHE_DIR="$HOME/xla-cache" && mkdir -p "$JAX_COMPILATION_CACHE_DIR"'
 
-# ── Create the VM ───────────────────────────────────────────────────────
-step "Creating TPU VM ($ACCEL, --$PROVISION_MODE) — \$${HOURLY_RATE}/hr starts now"
-
-CREATE_CMD=(
-  gcloud compute tpus tpu-vm create "$TPU_NAME"
-  --zone="$ZONE"
-  --accelerator-type="$ACCEL"
-  --version="$RUNTIME"
-  "--${PROVISION_MODE}"
-)
-run "${CREATE_CMD[@]}"
+# ── Create or attach to the VM (idempotent: skip create if it already exists) ──
+# Rationale: if a previous run failed mid-script, the VM is up but unconfigured.
+# Re-running provision_tpu.sh should resume from where it failed, not abort with
+# ALREADY_EXISTS. All downstream steps are idempotent (HF token overwrites,
+# git clone has `rm -rf` first, pip install skips installed, otelcol install
+# has an existence guard, shutdown -h cancels+reschedules prior).
+if gcloud compute tpus tpu-vm describe "$TPU_NAME" --zone="$ZONE" >/dev/null 2>&1; then
+  step "VM $TPU_NAME already exists in $ZONE — skipping create (resuming setup)"
+else
+  step "Creating TPU VM ($ACCEL, --$PROVISION_MODE) — \$${HOURLY_RATE}/hr starts now"
+  CREATE_CMD=(
+    gcloud compute tpus tpu-vm create "$TPU_NAME"
+    --zone="$ZONE"
+    --accelerator-type="$ACCEL"
+    --version="$RUNTIME"
+    "--${PROVISION_MODE}"
+  )
+  run "${CREATE_CMD[@]}"
+fi
 
 step "VM ready"
 
