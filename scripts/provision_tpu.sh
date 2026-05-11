@@ -208,9 +208,19 @@ step "VM ready"
 # Per Fix 4 (Tier 2 #6): make the env var sticky for any future SSH session
 # on this VM. Idempotent — only appended once per VM lifetime.
 step "Persisting XLA compile-cache env in ~/.profile"
-PROFILE_SNIPPET='# tpu-bench: XLA compile cache (Tier 2 #6)\nexport JAX_COMPILATION_CACHE_DIR="$HOME/xla-cache"\nmkdir -p "$JAX_COMPILATION_CACHE_DIR"'
-run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-  --command="'grep -q JAX_COMPILATION_CACHE_DIR \$HOME/.profile 2>/dev/null || printf \"%b\\n\" \"$PROFILE_SNIPPET\" >> \$HOME/.profile'"
+# Heredoc-on-laptop builds the multi-line command, heredoc-on-remote writes the
+# snippet to .profile. Both heredoc delimiters are single-quoted so neither side
+# expands $HOME or $JAX_COMPILATION_CACHE_DIR — those land literally in .profile,
+# to be resolved when bash next sources it.
+PROFILE_CMD=$(cat <<'CMD'
+grep -q JAX_COMPILATION_CACHE_DIR $HOME/.profile 2>/dev/null || cat >> $HOME/.profile <<'PROFILE_EOF'
+# tpu-bench: XLA compile cache (Tier 2 #6)
+export JAX_COMPILATION_CACHE_DIR="$HOME/xla-cache"
+mkdir -p "$JAX_COMPILATION_CACHE_DIR"
+PROFILE_EOF
+CMD
+)
+run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --command="$PROFILE_CMD"
 
 # ── Propagate HuggingFace token (gated models: Gemma/LLaMA/PaliGemma) ───
 # Priority: GCP Secret Manager (preferred — no laptop→VM transit of the
@@ -247,11 +257,11 @@ if [[ -n "$HF_TOKEN_VALUE" ]]; then
   printf "%s" "$HF_TOKEN_VALUE" > "$TMP_TOKEN"
   # Prepare the VM dir first (scp can't mkdir).
   run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-    --command="'mkdir -p \$HOME/.cache/huggingface \$HOME/.huggingface && chmod 700 \$HOME/.cache/huggingface \$HOME/.huggingface'"
+    --command="mkdir -p \$HOME/.cache/huggingface \$HOME/.huggingface && chmod 700 \$HOME/.cache/huggingface \$HOME/.huggingface"
   run gcloud compute tpus tpu-vm scp "$TMP_TOKEN" \
     "$TPU_NAME":~/.cache/huggingface/token --zone="$ZONE"
   run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-    --command="'chmod 600 \$HOME/.cache/huggingface/token && cp \$HOME/.cache/huggingface/token \$HOME/.huggingface/token && chmod 600 \$HOME/.huggingface/token'"
+    --command="chmod 600 \$HOME/.cache/huggingface/token && cp \$HOME/.cache/huggingface/token \$HOME/.huggingface/token && chmod 600 \$HOME/.huggingface/token"
   ok "HF token installed at \$HOME/.cache/huggingface/token (mode 0600)"
 else
   warn "No HF token found locally or in Secret Manager — gated models (Gemma/LLaMA/PaliGemma) will fail."
@@ -265,7 +275,7 @@ if $HAVE_GIT_REMOTE && ! $DETACHED; then
   ok "Strategy: git clone --depth=1 --branch=$BRANCH (only tracked files, no .tpu/.git history/.claude)"
   CLONE_CMD="$REMOTE_PRELUDE && rm -rf \$HOME/tpu-examples && git clone --depth=1 --branch=$BRANCH '$REMOTE_URL' \$HOME/tpu-examples"
   run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-    --command="\"$CLONE_CMD\""
+    --command="$CLONE_CMD"
 
   if [[ "$UNCOMMITTED_COUNT" -gt 0 ]]; then
     ok "Overlaying $UNCOMMITTED_COUNT uncommitted/untracked file(s) via tar (with excludes)"
@@ -374,14 +384,14 @@ else
   INSTALL_CMD="$REMOTE_PRELUDE && pip install --quiet -r \$HOME/tpu-examples/requirements.txt"
 fi
 run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-  --command="\"$INSTALL_CMD\""
+  --command="$INSTALL_CMD"
 
 # ── Optional: rsync HF model cache from GCS ─────────────────────────────
 if $HF_CACHE_ACTIVE; then
   step "Syncing HF model cache from GCS"
   HF_CMD="mkdir -p \$HOME/.cache/huggingface/hub && gsutil -m rsync -r '$HF_MODEL_CACHE_URL' \$HOME/.cache/huggingface/hub/"
   run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-    --command="\"$HF_CMD\""
+    --command="$HF_CMD"
 fi
 
 # ── Install OTel collector (unchanged behavior) ─────────────────────────
@@ -399,7 +409,7 @@ OTEL_CMD='
     mkdir -p results/otel
   '
 run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-  --command="\"$OTEL_CMD\""
+  --command="$OTEL_CMD"
 
 # ── Auto-teardown safety net (Tier 3 #11) ───────────────────────────────
 # Convert MAX_RUNTIME to minutes for `shutdown -h +N`. Accepts Nh, Nm, "none".
@@ -423,7 +433,7 @@ if [[ -n "$SHUTDOWN_MIN" ]]; then
   # teardown_tpu.sh, which deletes the VM outright).
   SHUTDOWN_CMD="sudo shutdown -h +${SHUTDOWN_MIN} 'tpu-bench self-teardown after ${MAX_RUNTIME}'"
   run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-    --command="\"$SHUTDOWN_CMD\""
+    --command="$SHUTDOWN_CMD"
 else
   warn "Self-teardown DISABLED (--max-runtime=none). Don't forget teardown_tpu.sh!"
 fi
@@ -432,7 +442,7 @@ fi
 step "Running hello-TPU check"
 HELLO_CMD="$REMOTE_PRELUDE && python \$HOME/tpu-examples/01_hello_tpu/hello_tpu.py"
 run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
-  --command="\"$HELLO_CMD\""
+  --command="$HELLO_CMD"
 
 # ── Done ────────────────────────────────────────────────────────────────
 step "Done"
