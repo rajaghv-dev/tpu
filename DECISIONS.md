@@ -410,3 +410,37 @@
 **Revisit trigger.** A novel-arch class consumes >20% of total stage time without producing transferable insight — demote it.
 
 ---
+
+## ADR-014 — Local OTel + Grafana for TPU-run observability
+
+**Decision.** Instrument the benchmark harness with the OpenTelemetry SDK. On the TPU VM, a local `otelcol-contrib` (v0.105.0) receives OTLP/gRPC on `localhost:4317` and writes OTLP-JSON files to `results/otel/`. After the run, the user `scp`s those files back to the laptop (`./scripts/otel_collect.sh`) and replays them into a single-container Grafana stack (`grafana/otel-lgtm`) via a sidecar otelcol with the `otlpjsonfile` receiver (`./scripts/otel_view.sh`). No cloud, no live streaming.
+
+**Status.** Accepted (Session 4, 2026-05-11).
+
+**Context.** ADR-008 rejected Grafana for *results visualization* — the cross-experiment table of benchmark rows (model × precision × device × throughput) belongs in a static HTML + Vega-Lite dashboard served from GitHub Pages. That decision stands. ADR-014 addresses a different concern: **per-run telemetry** — phase timings, latency distributions, compile-cache hit/miss, and the internal Gantt of a single experiment. The static dashboard cannot answer "why did this one cell take 47 seconds in the compile phase?"; OTel + a query language (PromQL/TraceQL) can. The user requirement is strict: no cloud dependency, no always-on local service, and the workflow must survive losing the preemptible TPU mid-run.
+
+**Decision rationale.**
+- OTLP is the standard observability wire protocol — every backend (Tempo, Prometheus, Jaeger, even a no-op JSON file) accepts it. Future swaps are free.
+- Writing OTLP-JSON to disk on the TPU and replaying locally decouples capture from visualization — a preempted TPU still leaves usable telemetry on disk up to the last flush.
+- `grafana/otel-lgtm` packages Loki, Grafana, Tempo, and Prometheus in one container — operationally cheaper than running four services for a personal benchmark.
+- Pinned `otelcol-contrib` v0.105.0 has both the `otlpjsonfile` receiver (replay side) and the `file` exporter (capture side) stable.
+- Replay-from-files is debug-friendly: the same run can be inspected next week, on a different laptop, without re-running on a TPU.
+
+**Alternatives considered.**
+1. *Grafana Cloud.* Rejected by user — zero cloud telemetry dependency is a hard constraint.
+2. *`jax.profiler` + TensorBoard.* Kept for Stage 3 (HLO/op-level analysis). Does not cover host-side phase timings or aggregate distributions across many runs, and TensorBoard's UI is not queryable.
+3. *Custom timeline written to `runs.jsonl`.* Rejected — JSONL can record summary stats but cannot drive PromQL/TraceQL queries; we'd be reinventing a query engine.
+4. *Live OTLP push from TPU to laptop over the gcloud SSH tunnel.* Rejected — flaky on preemption, requires tunnel to stay open for the full run, and adds a network failure mode to every benchmark.
+
+**Consequences.**
+- Enables: per-phase Gantt for a single experiment, latency p50/p95/p99 heatmaps over time, throughput-vs-precision compare in Grafana, compile-time breakdown (cold vs warm) — none of which fit the static dashboard.
+- Constrains: requires Docker locally (already a soft assumption for dev work); adds `opentelemetry-*` to `requirements.txt`; adds ~30s to `provision_tpu.sh` (one-time otelcol-contrib download per VM); adds `results/otel/` to repo `.gitignore`.
+
+**Risks.**
+- `otelcol-contrib` version drift breaks the `otlpjsonfile` receiver or `file` exporter. Mitigation: pin v0.105.0 in both `provision_tpu.sh` and `infra/docker-compose.yml`; revisit on each minor release.
+- `grafana/otel-lgtm` internal layout (mount paths, port assignments) shifts across releases. Mitigation: pin image tag in `infra/docker-compose.yml` with an explanatory comment.
+- User forgets to start the collector on the TPU before the run. Mitigation: harness logs `OTel: writing to localhost:4317` at startup; the post-run `otel_collect.sh` warns if `results/otel/` is empty.
+
+**Revisit trigger.** Per-run metric volume exceeds 1M records per `runs.jsonl` (summarization layer required), OR the user wants live-during-run monitoring (would push us back to Grafana Cloud, persistent Prometheus, or an always-on tunnel — re-cost at that point).
+
+---

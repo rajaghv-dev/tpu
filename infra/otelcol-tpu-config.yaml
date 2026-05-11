@@ -1,0 +1,49 @@
+# TPU-side OpenTelemetry Collector config.
+#
+# Runs on the TPU VM during a benchmark run. The Python harness exports OTLP-gRPC
+# to localhost:4317; this collector receives it and writes OTLP-JSON to a single
+# file on disk. After the run, copy that file to the laptop under ./results/otel/
+# and bring up infra/docker-compose.yml to replay it into Grafana.
+#
+# Run with:
+#   OUT_FILE=./results/otel/run-$(date +%Y%m%dT%H%M%S).jsonl \
+#     otelcol-contrib --config=infra/otelcol-tpu-config.yaml
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    # Small timeout so file writes flush at a reasonable cadence for post-run debugging.
+    timeout: 1s
+    send_batch_size: 512
+
+exporters:
+  # The `file` exporter (otelcol-contrib) emits one JSON object per line in OTLP-JSON encoding.
+  # ${OUT_FILE} is read from the environment; defaults via shell to ./results/otel/run.jsonl.
+  file:
+    path: ${env:OUT_FILE}
+    format: json
+    rotation:
+      max_megabytes: 256
+      max_days: 30
+      max_backups: 10
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
+  telemetry:
+    logs:
+      level: info

@@ -1,0 +1,43 @@
+# Laptop-side replay collector config.
+#
+# Tails OTLP-JSON files dropped by the TPU-side collector (mounted at /data) and
+# forwards them to the otel-lgtm container's OTLP-gRPC endpoint at lgtm:4317.
+# `otlpjsonfile` is in otelcol-contrib (mainline).
+
+receivers:
+  otlpjsonfile:
+    include:
+      - /data/*.jsonl
+      - /data/*.json
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+exporters:
+  otlp:
+    # `lgtm` is the docker-compose service name and resolvable on the default compose network.
+    endpoint: lgtm:4317
+    tls:
+      insecure: true
+    # Allow a generous timeout — replays can come in fast bursts.
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 1000
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlpjsonfile]
+      processors: [batch]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlpjsonfile]
+      processors: [batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info

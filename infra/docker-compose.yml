@@ -1,0 +1,62 @@
+# Local Grafana + OpenTelemetry replay stack for tpu-benchmark.
+#
+# Two services:
+#   1. lgtm     — grafana/otel-lgtm bundles Grafana + Tempo + Mimir/Prom + Loki + Pyroscope + internal collector.
+#                 We expose Grafana on :3000 and the bundled OTLP-gRPC receiver on :4317 so the
+#                 replay sidecar can push spans/metrics into it.
+#
+#   2. replay   — one-shot otelcol-contrib that reads OTLP-JSON files captured on the TPU VM
+#                 (mounted from ../results/otel/) and forwards them to lgtm:4317.
+#
+# Compose-spec (no top-level `version:` field per modern compose).
+
+services:
+
+  # ----- Grafana + observability backend (single-container all-in-one) -----
+  lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: tpu-bench-lgtm
+    ports:
+      - "3000:3000"   # Grafana UI
+      - "4317:4317"   # OTLP gRPC ingress (used by the replay sidecar)
+      # 4318 (OTLP HTTP) is also exposed by the image but not needed here.
+    environment:
+      # otel-lgtm uses admin/admin by default; override here if desired.
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      # Dashboard provider config — Grafana scans this directory for dashboard providers.
+      # The lgtm image stores Grafana provisioning under /otel-lgtm/grafana/conf/provisioning.
+      # If a future lgtm version changes this path, adjust both lines below.
+      - ./grafana/provisioning/dashboards/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tpu-bench.yaml:ro
+      # Datasource overrides (lgtm auto-provisions tempo + prometheus; this file just pins the UIDs
+      # our dashboards reference — see datasources.yaml for caveats).
+      - ./grafana/provisioning/datasources/datasources.yaml:/otel-lgtm/grafana/conf/provisioning/datasources/tpu-bench.yaml:ro
+      # The dashboard JSON files themselves. The dashboards.yaml provider points at this path.
+      - ./grafana/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards-extra:ro
+    healthcheck:
+      # Grafana health endpoint — lgtm starts Grafana last so once this is OK the OTLP listener is up too.
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  # ----- Replay sidecar — reads OTLP-JSON files and pushes to lgtm -----
+  replay:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: tpu-bench-replay
+    command: ["--config=/etc/otelcol/replay-config.yaml"]
+    volumes:
+      - ./otelcol-replay-config.yaml:/etc/otelcol/replay-config.yaml:ro
+      # Where the TPU-side collector dropped its OTLP-JSON files.
+      - ../results/otel:/data:ro
+    depends_on:
+      lgtm:
+        condition: service_healthy
+    # One-shot: the otlpjsonfile receiver will tail/read files; we restart=no so the user can re-run
+    # `docker compose up replay` for additional replays without auto-restart loops.
+    restart: "no"

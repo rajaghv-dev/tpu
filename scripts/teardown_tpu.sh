@@ -5,7 +5,7 @@
 set -euo pipefail
 
 TPU_NAME="${1:-tpu-demo}"
-ZONE="${2:-us-central1-a}"
+ZONE="${2:-us-west4-a}"
 
 echo "Deleting TPU VM: $TPU_NAME in $ZONE ..."
 gcloud compute tpus tpu-vm delete "$TPU_NAME" \

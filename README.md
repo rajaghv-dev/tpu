@@ -99,6 +99,20 @@ python benchmarks/harness.py --model bert_base --device gpu
 
 Results append to `results/runs.jsonl`. Dashboard at `results/dashboard/index.html`.
 
+### Observability — OpenTelemetry + local Grafana
+
+The harness emits OTel spans and metrics when `TPU_BENCH_OTEL=otlp` (or `=file` for direct JSONL).
+After a TPU run:
+
+```bash
+./scripts/otel_collect.sh              # pull results/otel/ from TPU VM
+./scripts/otel_view.sh                 # start Grafana at http://localhost:3000
+```
+
+Four pre-baked dashboards: Experiment Timeline, Latency Distribution, Throughput vs Precision, Compile Breakdown.
+
+Design: ADR-014 in DECISIONS.md.
+
 ### Run tests (no GPU/TPU needed)
 
 ```bash

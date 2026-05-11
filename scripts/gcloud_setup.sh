@@ -17,7 +17,15 @@ gcloud services enable \
   logging.googleapis.com \
   monitoring.googleapis.com
 
-echo "Verifying TPU quota (us-central1-a, v3-8) ..."
-gcloud compute tpus list --zone=us-central1-a 2>/dev/null || true
+echo "Listing existing TPUs in us-west4-a (target zone for v5e-1) ..."
+gcloud compute tpus list --zone=us-west4-a 2>/dev/null || true
 
-echo "Done. You can now run ./scripts/provision_tpu.sh"
+cat <<'EOF'
+
+Done. Before running ./scripts/provision_tpu.sh:
+  1. Request quota: IAM & Admin → Quotas → filter "Preemptible TPU v5 Lite"
+     → request ≥1 in us-west4 (other v5e zones: us-central1-a, europe-west4-a,
+       asia-southeast1-a).
+  2. Verify quota approved (can take hours-days).
+  3. Then: ./scripts/provision_tpu.sh
+EOF

@@ -1,0 +1,114 @@
+{
+  "uid": "tpu-bench-timeline",
+  "title": "TPU Bench - Experiment Timeline (Traces)",
+  "tags": ["tpu-bench"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "name": "model_id",
+        "label": "Model",
+        "type": "query",
+        "datasource": {
+          "type": "tempo",
+          "uid": "tempo"
+        },
+        "query": {
+          "type": "1",
+          "tag": "model.id"
+        },
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "traces",
+      "title": "Recent experiments (service.name = tpu-benchmark)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{service.name=\"tpu-benchmark\" && name=\"experiment\"}",
+          "limit": 50,
+          "tableType": "traces"
+        }
+      ],
+      "options": {}
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "phase.compile.cold durations (recent)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{service.name=\"tpu-benchmark\" && name=\"phase.compile.cold\"} | select(.model.id, .device, .precision, duration)",
+          "limit": 100,
+          "tableType": "spans"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

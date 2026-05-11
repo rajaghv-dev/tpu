@@ -1,0 +1,40 @@
+# Grafana datasource provisioning.
+#
+# NOTE: the grafana/otel-lgtm image already auto-provisions Tempo and Prometheus/Mimir
+# datasources at startup. This file is intentionally minimal — it just pins the UIDs
+# (`tempo` and `prometheus`) that our dashboards reference so they resolve consistently
+# even on lgtm versions that pick different UIDs by default.
+#
+# If lgtm's built-in provisioning conflicts with this file, delete the offending entry
+# below (or this whole file) — the dashboards will still load, but you may need to
+# re-select the datasource in each panel via the Grafana UI.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 5s
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://localhost:3200
+    editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false

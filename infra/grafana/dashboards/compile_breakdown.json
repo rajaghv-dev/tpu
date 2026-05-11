@@ -1,0 +1,167 @@
+{
+  "uid": "tpu-bench-compile",
+  "title": "TPU Bench - Compile Time Breakdown",
+  "tags": ["tpu-bench"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "name": "model_id",
+        "label": "Model",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(benchmark_compile_cold_seconds_count, model_id)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Mean compile time (cold vs warm) per model",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 16,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg by (model_id) (rate(benchmark_compile_cold_seconds_sum{model_id=~\"$model_id\"}[$__rate_interval]) / clamp_min(rate(benchmark_compile_cold_seconds_count{model_id=~\"$model_id\"}[$__rate_interval]), 1e-9))",
+          "legendFormat": "{{model_id}} cold"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg by (model_id) (rate(benchmark_compile_warm_seconds_sum{model_id=~\"$model_id\"}[$__rate_interval]) / clamp_min(rate(benchmark_compile_warm_seconds_count{model_id=~\"$model_id\"}[$__rate_interval]), 1e-9))",
+          "legendFormat": "{{model_id}} warm"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["mean", "lastNotNull"]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Compile-only overhead: (cold - warm) / cold",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(\n  avg by (model_id) (benchmark_compile_cold_seconds_sum{model_id=~\"$model_id\"} / clamp_min(benchmark_compile_cold_seconds_count{model_id=~\"$model_id\"}, 1))\n  -\n  avg by (model_id) (benchmark_compile_warm_seconds_sum{model_id=~\"$model_id\"} / clamp_min(benchmark_compile_warm_seconds_count{model_id=~\"$model_id\"}, 1))\n)\n/ clamp_min(\n  avg by (model_id) (benchmark_compile_cold_seconds_sum{model_id=~\"$model_id\"} / clamp_min(benchmark_compile_cold_seconds_count{model_id=~\"$model_id\"}, 1)),\n  1e-9\n)",
+          "legendFormat": "{{model_id}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

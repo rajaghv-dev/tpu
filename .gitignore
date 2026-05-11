@@ -15,3 +15,8 @@ data/
 wandb/
 *.tfevents.*
 .claude/
+
+# OTel run output — per-run JSONL is regeneratable; runs.jsonl in results/ stays tracked.
+results/otel/
+otelcol-contrib
+otelcol-contrib_*.tar.gz

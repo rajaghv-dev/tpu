@@ -1,0 +1,18 @@
+# Grafana dashboard provisioning — points at the directory where the dashboard
+# JSON files are mounted inside the lgtm container (see docker-compose.yml volumes).
+
+apiVersion: 1
+
+providers:
+  - name: tpu-bench
+    orgId: 1
+    folder: TPU Benchmark
+    folderUid: tpu-bench
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      # Must match the mount path in docker-compose.yml for the dashboard JSONs.
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards-extra
+      foldersFromFilesStructure: false
