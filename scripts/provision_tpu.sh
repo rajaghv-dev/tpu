@@ -100,10 +100,14 @@ step() {
 
 # ── DRY-RUN-aware command runner ────────────────────────────────────────
 # Prints the command always; only executes when DRY_RUN=false.
+# NOTE: pass args directly ("$@") — do NOT eval. eval re-parses, which
+# breaks the inner quotes in --command="..." values and causes remote-side
+# vars (e.g. $JAX_COMPILATION_CACHE_DIR) to be expanded locally where they
+# are unset (set -u then trips). All callers use straight argv, no pipes.
 run() {
   printf "  \033[2m\$ %s\033[0m\n" "$*"
   if ! $DRY_RUN; then
-    eval "$@"
+    "$@"
   fi
 }
 
