@@ -17,7 +17,11 @@ tensorflow-datasets>=4.9.4
 numpy>=1.24
 
 # ── NLP / Vision models ───────────────────────────────────────────────────────
-transformers>=4.40.0
+# transformers >= 4.45 removed Flax model classes (FlaxAuto*, FlaxWhisper*,
+# FlaxCLIPModel) that benchmarks/runner.py imports. Pin to the last stable
+# 4.44.x release so the Stage 1 5-model registry can load. Lift this once
+# the harness migrates off Flax (Stage 2+ may use plain JAX or torch_xla).
+transformers>=4.40.0,<4.45.0
 sentencepiece>=0.2.0
 datasets>=2.19.0
 

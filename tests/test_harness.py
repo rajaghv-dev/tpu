@@ -188,6 +188,41 @@ class TestRunSuiteErrorPaths:
         )
         assert n == -1
 
+    def test_failed_experiment_appends_failure_stub(self, tmp_path):
+        """When run_experiment raises BenchmarkError, run_suite should:
+          - record 0 successes;
+          - append a failure-stub row to the JSONL output.
+        """
+        from benchmarks.runner import BenchmarkError
+
+        # Build a synthetic BenchmarkError as the runner would produce.
+        try:
+            raise OSError("simulated network failure")
+        except OSError as raw:
+            be = BenchmarkError("model_load", raw, "network")
+
+        out = tmp_path / "out.jsonl"
+        with mock.patch("benchmarks.harness.run_experiment", side_effect=be):
+            n = run_suite(
+                suite_name=None,
+                model_id="bert_base",
+                device="cpu",
+                framework="jax",
+                precision="bf16",
+                output_path=out,
+                registry_path=str(_REGISTRY_PATH),
+                dry_run=False,
+            )
+        # 0 successes (one configuration, one failure → returns 0)
+        assert n == 0
+        # Failure stub should be the only row in the JSONL.
+        rows = [json.loads(line) for line in out.read_text().splitlines()]
+        assert len(rows) == 1
+        assert rows[0]["status"] == "failed"
+        assert rows[0]["phase"] == "model_load"
+        assert rows[0]["error_category"] == "network"
+        assert rows[0]["model"] == "bert_base"
+
     def test_dry_run_returns_zero(self, tmp_path):
         n = run_suite(
             suite_name="smoke",

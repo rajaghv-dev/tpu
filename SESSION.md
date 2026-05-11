@@ -14,7 +14,7 @@ It contains the complete state of the project, decisions made, and what comes ne
 | GitHub user | `rajaghv-dev` (email: rajaghv.dev@gmail.com) |
 | GitHub auth | `gh` CLI authenticated, HTTPS protocol |
 | Branch | `main` |
-| Last commit | `e688c67` — Fix DGX→Blackwell B200, India access, H100/B200 costs, model justifications |
+| Last commit | `[update at commit time]` — Stage 1.5 observability layer + first successful TPU smoke run |
 | Shell | WSL2 (Linux on Windows), bash, /home/raja/tpu |
 
 ---
@@ -56,30 +56,125 @@ Single repo to understand and benchmark inference across:
 ├── 06_data_pipeline/                pipeline.py + README.md
 ├── 07_custom_training_loop/         train.py + README.md
 ├── 08_multi_host/                   train.py + README.md
-├── benchmarks/                      ✅ Stage 1 — harness.py + runner.py
+├── benchmarks/                      ✅ Stage 1 — harness.py + runner.py (BenchmarkError + phase ctx)
 ├── models/                          ✅ Stage 1 — registry.yaml (5 models)
-├── observe/                         ✅ Stage 1 — stats.py + lineage.py + compile_controller.py
-├── results/                         runs.jsonl (empty) + dashboard/index.html
-├── tests/                           ✅ 97 unit tests (no JAX/GPU required)
-├── scripts/
-│   ├── gcloud_setup.sh
-│   ├── provision_tpu.sh
-│   ├── gcloud_ssh_run.sh
-│   ├── gcloud_upload_data.sh
-│   ├── gcloud_pod_run.sh
-│   └── teardown_tpu.sh
+├── observe/                         ✅ Stage 1+1.5 — stats.py + lineage.py + compile_controller.py
+│                                       + probe.py (ABC + registry + 5 fanout helpers)
+│                                       + otel_probe.py + cloud_monitoring_probe.py
+│                                       + timing_probe.py + memory_probe.py
+│                                       + input_fingerprint_probe.py + hlo_dump_probe.py
+│                                       + jax_profiler_probe.py
+├── results/                         runs.jsonl + dashboard/index.html
+│   ├── dashboard/grafana/           ✅ Stage 1.5 — 5 importable JSON dashboards
+│   │   (roofline, mxu_heatmap, latency_violins, failures, cost)
+│   └── run_logs/<run_id>/           per-run probe outputs + error.json on failure
+├── tests/                           ✅ ~180 unit tests (was 124 before probe layer)
+├── scripts/                         ✅ 22 staged scripts + run_all.sh master + lib/
+│   ├── 00_validate_local.sh         01_validate_gcp.sh   02_validate_bucket.sh
+│   ├── 10_setup_bucket.sh           11_setup_budget.sh
+│   ├── 20_provision_tpu.sh          21_provision_fallback.sh   22_wait_ready.sh
+│   ├── 30_deploy_code.sh            31_install_deps.sh   32_verify_env.sh
+│   ├── 40_smoke_jax.sh              41_smoke_model.sh   42_dry_run.sh
+│   ├── 50_run_smoke.sh              51_run_quick.sh
+│   ├── 60_pull_results.sh           61_render_results.sh
+│   ├── 70_teardown.sh               71_verify_teardown.sh
+│   ├── 90_cost_report.sh            91_dump_logs.sh   92_idle_check.sh
+│   ├── run_all.sh                   master pipeline
+│   ├── render_results.py            generates RESULTS.md + per-run REPORT.md
+│   └── lib/{common,config}.sh
+├── train/                           ✅ Stage 1.6 — runner.py + harness.py + registry.yaml (bert_finetune)
+├── docs/runbooks/                   ✅ Stage 1.6 — tier3_tpu_session.md (R20/R21/R23 checklist)
+├── .github/workflows/               ✅ Stage 1.6 — smoke_on_push.yml (R24 — CPU-JAX CI)
 ├── README.md                        Landing page — Quick Start, harness table, all domains
-├── LESSON_PLAN.md                   15-module beginner→expert curriculum
+├── LESSON_PLAN.md                   15-module beginner→expert curriculum (+ Stage 1 retrospective)
 ├── DECISIONS.md                     13 ADRs
 ├── RISKS.md                         25+ risks
 ├── QUESTIONS.md                     23 open questions
-├── RECOMMENDATIONS.md               3-tier prioritised actions
-├── context.md                       Full project context (700+ lines)
+├── RECOMMENDATIONS.md               3-tier prioritised actions (Tier 3 closed Stage 1.6)
+├── context.md                       Full project context (700+ lines, §19 aha moments)
 ├── prompts.md                       All prompts P1–P49 + standing instructions
 ├── SESSION.md                       This file — session continuity
 ├── MEMORY.md                        Dense 3-min fast startup reference
 └── requirements.txt
 ```
+
+**Session 5 additions (2026-05-10) — Stage 1.6 (Tier 3 closeout + training observability):**
+
+- **Tier 3 closed:**
+  - R19 — `results/stage1_interpretation.md` (interpretation of the 2 existing TPU runs).
+  - R22 — `context.md` §19 added with 5 empirically-confirmed aha moments from BERT v5e-1 smoke.
+  - R24 — `.github/workflows/smoke_on_push.yml` runs pytest + `--dry-run` smoke on every push.
+  - R25 — Tag `stage1-complete` applied locally + pushed.
+  - R26 — `LESSON_PLAN.md` Stage 1 retrospective (what went well, what cost more, ADRs to revisit).
+  - R20/R21/R23 — scripted but not yet run (need TPU/B200 session):
+    - `scripts/53_run_bf16_validation.sh` (R20: BF16 vs FP32 on vit_b16 v5e-1).
+    - `scripts/54_thermal_check.sh` (R21: 1-Hz nvidia-smi sampler around quick suite on B200).
+    - `scripts/55_repro_validation.sh` (R23: re-run smoke on a fresh VM in a different zone).
+    - `docs/runbooks/tier3_tpu_session.md` orchestrates them in order.
+- **Training observability layer (`train/`):**
+  - `train/runner.py` — `TrainingExperimentConfig` + `run_training()` with phases
+    `preflight → data_load → model_load → compile → warmup → train_loop → eval → checkpoint → postflight`.
+    Reuses `phase()` and `BenchmarkError` from `benchmarks/runner.py` (one source of truth for
+    structured exception capture).
+  - `train/harness.py` — CLI mirroring `benchmarks/harness.py`. `--probes default|none|full`
+    auto-registers the right probe set. Output → `results/training_runs.jsonl` (separate index).
+  - `train/registry.yaml` — `bert_finetune` (sequence-classification on synthetic GLUE-shaped inputs).
+- **Probe ABC extended with step-level hooks:**
+  - New methods (no-op default): `before_step(step)`, `after_step(step, metrics)`, `record_metric(name, value, step)`.
+  - New fan-outs in `observe/probe.py`: `fanout_before_step`, `fanout_after_step`, `fanout_record_metric`.
+  - Existing inference probes are unaffected (no-op defaults).
+- **Three new training-specific probes:**
+  - `observe/training_metrics_probe.py` — per-step loss/lr/grad_norm/accuracy + ad-hoc record_metric.
+  - `observe/step_timing_probe.py` — per-step wall-clock, samples/sec, tokens/sec, p95/p99,
+    rolling-window throughput. Distinguishes warmup steps (first 5) from steady state.
+  - `observe/checkpoint_probe.py` — pairs `checkpoint_write` / `checkpoint_size_bytes` /
+    `checkpoint_path` records by step; also discovers files on disk if the runner forgot to record.
+- **Tests:** 180 → 224 (+32 new). All pass on CPU. New tests in `tests/test_training_probes.py` and
+  `tests/test_train_runner.py`. Buggy-probe-must-not-break-fanout case is explicitly tested.
+
+**Session 4 additions (2026-05-06) — Stage 1.5 + first TPU smoke run COMPLETE:**
+
+- GCP setup: gcloud CLI installed, authenticated as rajaghv@gmail.com, project `nellaiappar-001`.
+  v5e quota confirmed in us-east5 / us-west1 / us-west4 (per-region, 1536-chip preemptible limit).
+- 22 staged scripts: `scripts/00_validate_local.sh` … `92_idle_check.sh` + `run_all.sh` master +
+  `lib/{common,config}.sh`. Pipeline = validate → bucket → provision (multi-zone fallback) →
+  deploy → install → verify → smoke/quick → pull results → teardown → verify $0/hr.
+- BenchmarkError class in `benchmarks/runner.py` (phase + error_category attrs); per-phase context
+  manager; `error.json` written to `results/run_logs/<run_id>/`; failure stub appended to
+  `runs.jsonl` with `status="failed"` and `run_id` so REPORT.md can link.
+- Probe-based observability layer (the biggest addition):
+  - `observe/probe.py` — `Probe` ABC, registry, 5 fanout helpers wired into
+    `runner.run_experiment` and `phase()`. Contract: `before_run`, `after_run`,
+    `before_phase`, `after_phase`, `on_error`, `write_log`. Fanout swallows probe
+    exceptions so a buggy probe never fails a benchmark.
+  - 7 built-in probes: `OTelProbe`, `CloudMonitoringProbe`, `TimingProbe`, `MemoryProbe`,
+    `InputFingerprintProbe`, `HloDumpProbe`, `JaxProfilerProbe`. Each writes
+    `<probe_name>.json` to the run_log dir.
+  - 5 importable Grafana dashboards at `results/dashboard/grafana/`
+    (roofline, mxu_heatmap, latency_violins, failures, cost).
+  - Test count: 124 → ~180 (+60 new probe tests).
+- `scripts/render_results.py` — generates RESULTS.md + per-run REPORT.md from runs.jsonl + run_logs.
+- Bug fixes during the session:
+  - `01_validate_gcp.sh` IAM heuristic: older gcloud lacks `test-iam-permissions`; replaced
+    with read-probe heuristic.
+  - `42_dry_run.sh` / `50_run_smoke.sh` / `51_run_quick.sh`: switched from
+    `python3 benchmarks/harness.py` to `python3 -m benchmarks.harness` for proper package resolution.
+  - `run_all.sh` stage order: removed `02_validate_bucket.sh` from the pipeline because it ran
+    before `10_setup_bucket.sh`; soft-fail handling for stage 11 budget setup.
+  - `harness.py` failure stub now includes `run_id` so REPORT.md can link.
+
+**First successful TPU smoke run (2026-05-06, v5e-1 in us-west4-a):**
+
+| Metric | Value |
+|---|---|
+| Model / precision | BERT-base, BF16 |
+| Latency p50 / p95 / p99 | 0.64 / 0.66 / 0.66 ms (CV 1.31%, well under the 10% gate) |
+| Throughput | 5,261 samples/sec ± 7.8 |
+| Compile (cold / warm) | 5.20 s / 0.0008 s (cache hit working) |
+| Cost per experiment / per 1k samples | $0.00056 / $0.000019 |
+| Test session total / post-teardown $/hr | ~$0.12 / $0/hr verified clean |
+
+Versions pinned: jax 0.6.2, transformers 4.44.2 (4.45+ removed Flax).
 
 **Session 3 additions (2026-04-29) — Stage 1 COMPLETE:**
 - benchmarks/harness.py — CLI: --suite smoke/quick, --model, --dry-run, --device, --precision
@@ -129,6 +224,8 @@ staged but not committed. The push command is at the end of this session's work.
 | Stage | Description | Status |
 |-------|-------------|--------|
 | 1 | Foundation: harness.py, runner.py, 5 models, Path 1, table dashboard | **COMPLETE (2026-04-29)** |
+| 1.5 | Probe layer (Probe ABC + 7 probes + Grafana dashboards) + GCP scripts + first TPU smoke run | **COMPLETE 2026-05-06** |
+| 1.6 | Tier 3 closeout (R19/R22/R24/R25/R26 done; R20/R21/R23 scripted) + train/ harness + 3 training probes | **COMPLETE 2026-05-10** (tag `stage1-complete`) |
 | 2 | Multi-path: Paths 2+3, system_monitor, 15 models, heatmap dashboard | Not started |
 | 3 | Profiler + Roofline: flops_counter, tracer, hlo_analyser | Not started |
 | 4 | torch_xla: Path 4 | Not started |
@@ -139,6 +236,48 @@ staged but not committed. The push command is at the end of this session's work.
 | 9 | Full registry + GitHub Actions automation | Not started |
 
 **Next coding session starts at Stage 2** (Paths 2+3, observe/system_monitor.py, 15 models, heatmap dashboard).
+**Pre-Stage-2 to-do** (from LESSON_PLAN retrospective): close 4 soft points — strict lockfile install, GIT_SHA hand-off, default-on probe registration in inference harness, `compile_cache_hit` field rename.
+
+---
+
+## Stage 1.5 — Observability Layer (this session)
+
+The probe layer is the extension point for everything observability-shaped. Runner core stays small;
+new telemetry is added by writing a Probe subclass and registering it — no edits to `runner.py`.
+
+**Probe contract (from `observe/probe.py`):**
+
+```
+class Probe(ABC):
+    name: str
+    def before_run(ctx): ...     # called once at run_experiment start
+    def after_run(ctx, result): ...
+    def before_phase(ctx, phase_name): ...
+    def after_phase(ctx, phase_name, elapsed): ...
+    def on_error(ctx, exc): ...
+    def write_log(run_log_dir): ...   # called at end; emits <name>.json
+```
+
+**Built-in probes (in `observe/`):**
+
+| Probe | Captures |
+|---|---|
+| OTelProbe | Spans + histograms + counters via OTLP |
+| CloudMonitoringProbe | TPU MXU% / GPU SM% / power / thermal from cloud APIs |
+| TimingProbe | Per-phase wall-clock, cold-vs-warm split |
+| MemoryProbe | Peak HBM, allocator timeline |
+| InputFingerprintProbe | Input tensor SHA + shape + dtype (lineage) |
+| HloDumpProbe | XLA HLO text + after-optimization dump |
+| JaxProfilerProbe | jax.profiler trace.pb (open in TensorBoard) |
+
+**Register a probe in 5 lines:**
+
+```python
+from observe.probe import register
+from observe.timing_probe import TimingProbe
+register(TimingProbe())
+# now run benchmarks; <run_log_dir>/timing_probe.json appears automatically
+```
 
 ---
 

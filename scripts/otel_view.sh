@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bring up the local Grafana + replay-otelcol stack and open the browser.
-# See DECISIONS.md ADR-014 (local OTel + Grafana for TPU-run observability).
+# See DECISIONS.md ADR-016 (local-only OTel + Grafana, supersedes ADR-015).
 # Usage: ./scripts/otel_view.sh [--down]
 
 set -euo pipefail

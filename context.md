@@ -940,3 +940,40 @@ would answer it; results land in `runs.jsonl` and update this section when known
 6. **(Open, lower priority)** Does PaliGemma's TPU advantage survive when you swap its connector to a non-Google MLP? — isolates "co-design" from "good architecture."
 
 7. **(Open, lower priority)** Do Colab Pro v2-8 results predict v5e-1 results within 20%? — would let us use Colab as a cheap pre-flight check before spending v5e-1 hours.
+
+---
+
+## 19. Aha Moments — Empirically Confirmed (Closes R22)
+
+> Surprises from actual runs. Each entry cites the `run_id` so the claim is auditable.
+> Use this section to track findings the curriculum should foreground.
+
+### 19.1 BF16 BERT-base on v5e-1 hits 5,261 samp/s with CV=1.31% out of the box
+
+**Evidence.** `run_id=6f049c5d-d1fb-4f1b-aa9a-998c34d2e894`, smoke run 2026-05-06.
+**The surprise.** No tuning. Default model from HF, default precision cast in the harness, bs=64 throughput phase, 3×100 passes — and the coefficient of variation came in under 1.5%. This is **the cleanest measurement we've made** and validates that:
+1. The 9-phase protocol's warmup (20 passes) is sufficient for BERT-class encoders.
+2. MAD-based outlier removal in `observe/stats.py` is doing its job — no `high_variance` flag.
+3. The "throwaway-the-first-cold-compile" pattern in `compile_controller` correctly isolates compile from steady-state cost (5.20 s vs 0.0008 s).
+
+**What it implies.** TPU v5e-1 measurement noise floor for transformer encoders is **<2% CV** on Stage 1's protocol, far inside the 10% gate. We can confidently make smaller comparative claims (e.g., 5% throughput differences across precisions) once the gate fires reliably across the registry.
+
+### 19.2 First/subsequent compile ratio is 6,500× — XLA cache works perfectly within a process
+
+**Evidence.** Same run. `first_compile_s=5.2028`, `subsequent_compile_s=0.0008`.
+**The surprise.** The in-process JIT cache is so effective that the second invocation of an identical JIT'd function is essentially free (sub-millisecond). This is the local-cache behaviour. **What we don't yet know** is whether the *persistent* GCS-backed cache (R4) survives a VM restart with the same fidelity — a question the next TPU session needs to answer.
+
+### 19.3 transformers 5.x silently kills every Flax import
+
+**Evidence.** `run_id=a0020844-…` failed at `model_load` with `ImportError: cannot import name 'FlaxAutoModelForSequenceClassification'`. The TPU VM had `transformers==5.8.0` despite our intent to pin `4.44.2`.
+**The surprise.** PyPI default-resolution rolled `transformers` to a major-version bump that **removed every Flax symbol**. The repo's `requirements.stage1.lock.txt` was correct; the deploy script wasn't using it. **The lesson.** A pinned lockfile is worth nothing unless the install step (`31_install_deps.sh`) consumes it strictly. This is now a flagged action item in `results/stage1_interpretation.md`.
+
+### 19.4 Tarball deploy strips `.git/`, breaking lineage on every TPU run
+
+**Evidence.** Same successful smoke run — `git_sha="unknown"` in both `lineage.json` and `runs.jsonl`.
+**The surprise.** The `30_deploy_repo.sh` tarball deploy was designed for speed (~30s vs ~3min for full clone), but it omits `.git/`. `lineage.get_git_sha()` returns `"unknown"` and the evidence chain breaks at row 1. **The whole reproducibility story (R13, ADR-007 traceability) silently fails** until either (a) the deploy script passes `GIT_SHA=$(git rev-parse HEAD)` as an env var, or (b) the harness accepts `--git-sha` and the script wires it. Both are cheap. Both should land before the next TPU session.
+
+### 19.5 Per-run cost is in fractions of a cent — preemptible v5e-1 is genuinely cheap
+
+**Evidence.** Same run. `experiment_cost_usd=0.00056`, `cost_per_1k_samples_usd=0.0000190`.
+**The surprise.** A full smoke experiment — model load, compile, 20 warmup, 300 latency passes, 300 throughput passes, post-flight — costs **less than a tenth of a cent**. Even running the full 75-model registry every variant of every dimension is bounded by single-digit dollars. **This validates the cost section of context.md** and means budget anxiety is not a real constraint for this project. The constraint is **wall-clock time per run** (~1–3 min), not money.

@@ -40,7 +40,7 @@ lock:
 	pip freeze > requirements.stage1.lock.txt
 	@echo "Lock file written. Tag the commit: git tag stage1-complete"
 
-# ── Observability (OTel + Grafana, see ADR-014) ────────────────────────────────
+# ── Observability (OTel + Grafana, see ADR-016) ────────────────────────────────
 
 otel-collect:
 	## Pull results/otel/ and runs.jsonl from the TPU VM
@@ -93,7 +93,7 @@ help:
 	@echo "    make dashboard     Serve results dashboard at localhost:8080"
 	@echo "    make lock          Freeze current env to requirements.stage1.lock.txt"
 	@echo ""
-	@echo "  Observability (OTel + Grafana, ADR-014):"
+	@echo "  Observability (OTel + Grafana, ADR-016):"
 	@echo "    make otel-collect  Pull OTel traces + runs.jsonl from TPU VM"
 	@echo "    make otel-view     Start local Grafana stack at localhost:3000"
 	@echo "    make otel-down     Stop the local Grafana stack"

@@ -1,0 +1,11 @@
+{
+  "git_sha": "unknown",
+  "jax_version": "0.6.2",
+  "transformers_version": "4.44.2",
+  "hf_model_revision": "86b5e0934494bd15c9632b12f734a8a67f723594",
+  "input_seed": 42,
+  "environment_hash": "d6419ffc16ace495",
+  "model": "bert_base",
+  "precision": "bf16",
+  "timestamp": "2026-05-06T17:48:41.411926Z"
+}

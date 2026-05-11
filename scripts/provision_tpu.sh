@@ -49,7 +49,7 @@ echo "Done. Next steps:"
 echo "  Smoke benchmark:  gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE \\"
 echo "                      --command='cd tpu-examples && PYTHONPATH=. python benchmarks/harness.py --suite smoke --device tpu_v5e1'"
 echo
-echo "  OTel workflow (see DECISIONS.md ADR-014):"
+echo "  OTel workflow (see DECISIONS.md ADR-016):"
 echo "  1. Start OTel collector on TPU (separate SSH session):"
 echo "       gcloud compute tpus tpu-vm ssh $TPU_NAME --zone=$ZONE \\"
 echo "         --command='cd tpu-examples && OUT_FILE=results/otel/\$(date +%s).jsonl ./otelcol-contrib --config infra/otelcol-tpu-config.yaml'"

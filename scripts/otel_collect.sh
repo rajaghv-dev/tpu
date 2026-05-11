@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pull OTLP-JSON traces/metrics and runs.jsonl back from a TPU VM.
-# See DECISIONS.md ADR-014 (local OTel + Grafana for TPU-run observability).
+# See DECISIONS.md ADR-016 (local-only OTel + Grafana, supersedes ADR-015).
 # Usage: ./scripts/otel_collect.sh [TPU_NAME] [ZONE]
 
 set -euo pipefail

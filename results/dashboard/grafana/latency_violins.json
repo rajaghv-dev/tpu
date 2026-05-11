@@ -1,0 +1,174 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Per-model p50/p95/p99 latency derived from histogram_quantile over benchmark.latency_ms_bucket. Time-series with one line per (model, quantile).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Latency quantiles per model. Three queries: p50, p95, p99.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "Latency (ms)",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le, model, device, precision) (rate(benchmark_latency_ms_bucket{model=~\"$model\", device=~\"$device\"}[5m])))",
+          "legendFormat": "p50 {{model}}/{{device}}/{{precision}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, model, device, precision) (rate(benchmark_latency_ms_bucket{model=~\"$model\", device=~\"$device\"}[5m])))",
+          "legendFormat": "p95 {{model}}/{{device}}/{{precision}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le, model, device, precision) (rate(benchmark_latency_ms_bucket{model=~\"$model\", device=~\"$device\"}[5m])))",
+          "legendFormat": "p99 {{model}}/{{device}}/{{precision}}",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Latency p50 / p95 / p99 by model",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Stat grid: latest p95 latency per (model, device).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 100},
+              {"color": "red", "value": 500}
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12},
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, model, device) (rate(benchmark_latency_ms_bucket{model=~\"$model\", device=~\"$device\"}[5m])))",
+          "legendFormat": "{{model}} on {{device}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Current p95 latency per (model, device)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["tpu-bench", "latency"],
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+        "hide": 0,
+        "label": "Prometheus / Mimir",
+        "refresh": 1,
+        "regex": ""
+      },
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "query": "label_values(benchmark_latency_ms_bucket, model)",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "label": "Model"
+      },
+      {
+        "name": "device",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+        "query": "label_values(benchmark_latency_ms_bucket, device)",
+        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "label": "Device"
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "TPU Bench - Latency Violins",
+  "uid": "tpu-bench-latency",
+  "version": 1,
+  "weekStart": ""
+}
