@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloud_tpu_lab"
+version = "0.1.0"
+description = "Hands-on Google Cloud TPU learning + architecture analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "cloud_tpu_lab contributors"}]
+
+[tool.setuptools]
+packages = [
+    "src",
+    "src.common", "src.tpu_versions", "src.model_examples",
+    "src.xla_sim", "src.pjrt_sim", "src.sharding",
+    "src.memory", "src.input_pipeline",
+    "src.profiling", "src.observability", "src.traceability",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"

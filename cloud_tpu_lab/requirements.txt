@@ -1,0 +1,39 @@
+# cloud_tpu_lab — runtime deps
+#
+# The CPU simulation slice runs on stdlib ONLY. Everything below is for the
+# optional notebooks / observability stack / TPU-ready paths.
+#
+# Install everything:   pip install -r requirements.txt
+# Or pick & choose:     see the comments next to each line.
+
+# ── CPU simulation slice (stdlib only) ───────────────────────────────────────
+# (nothing required here)
+
+# ── Notebooks + plotting (optional) ─────────────────────────────────────────
+numpy>=1.24
+matplotlib>=3.7
+pandas>=2.0
+pyyaml>=6.0
+jupyter>=1.0
+
+# ── JAX TPU-ready notebooks (optional) ──────────────────────────────────────
+# jax>=0.4.30
+# jaxlib>=0.4.30
+# flax>=0.8
+# optax>=0.2
+
+# ── PyTorch/XLA TPU-ready notebooks (optional) ──────────────────────────────
+# torch>=2.4
+# torch_xla>=2.4   # install per https://pytorch.org/xla/
+
+# ── TensorFlow TPU-ready notebooks (optional) ───────────────────────────────
+# tensorflow>=2.16
+
+# ── Observability stack (optional) ──────────────────────────────────────────
+# prometheus_client>=0.20
+# opentelemetry-api>=1.25
+# opentelemetry-sdk>=1.25
+# opentelemetry-exporter-otlp>=1.25
+
+# ── Testing ─────────────────────────────────────────────────────────────────
+pytest>=8.0

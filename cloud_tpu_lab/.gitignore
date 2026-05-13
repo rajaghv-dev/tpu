@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.pytest_cache/
+.ipynb_checkpoints/
+artifacts/logs/*
+artifacts/metrics/*
+artifacts/traces/*
+artifacts/reports/*
+artifacts/plots/*
+!artifacts/**/.gitkeep
+*.egg-info/
+.DS_Store
