@@ -1,0 +1,40 @@
+# Input-pipeline alerts.
+#
+# If the host is starving the TPU, the ratio of input wait time to step
+# time creeps up. Above 25% the device is idle a quarter of the time —
+# treat as a real bottleneck.
+
+groups:
+  - name: cloud_tpu_input_pipeline
+    interval: 30s
+    rules:
+      - record: cloud_tpu_input_wait_ratio
+        expr: |
+          cloud_tpu_input_wait_time_seconds
+          /
+          clamp_min(cloud_tpu_step_time_seconds, 0.001)
+
+      - alert: CloudTpuInputBound
+        expr: cloud_tpu_input_wait_ratio > 0.25
+        for: 5m
+        labels:
+          severity: warning
+          component: input_pipeline
+        annotations:
+          summary: "Input pipeline is the bottleneck"
+          description: >
+            input_wait_time / step_time is {{ $value }} for
+            workload {{ $labels.workload_name }}. The device spends
+            more than 25% of step time waiting on data.
+
+      - alert: CloudTpuInputBoundSevere
+        expr: cloud_tpu_input_wait_ratio > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          component: input_pipeline
+        annotations:
+          summary: "Input pipeline starving the device"
+          description: >
+            input_wait_time / step_time is {{ $value }} —
+            the TPU is idle more than half the time.

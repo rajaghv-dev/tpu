@@ -1,0 +1,58 @@
+# HBM (high-bandwidth memory) alerts.
+#
+# `cloud_tpu_hbm_utilization_ratio` is hbm_used / hbm_capacity. The
+# `error_type="oom"` label on cloud_tpu_error_count_total is set by the
+# exporter when an `event` of `hbm.oom` is observed in the JSONL stream.
+
+groups:
+  - name: cloud_tpu_hbm
+    interval: 30s
+    rules:
+      - alert: CloudTpuHbmUtilizationHigh
+        expr: cloud_tpu_hbm_utilization_ratio > 0.9
+        for: 2m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "HBM utilization above 90%"
+          description: >
+            HBM is {{ $value | humanizePercentage }} full on
+            {{ $labels.tpu_version }} for workload
+            {{ $labels.workload_name }}. Risk of OOM next step.
+
+      - alert: CloudTpuHbmUtilizationCritical
+        expr: cloud_tpu_hbm_utilization_ratio > 0.97
+        for: 30s
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "HBM near capacity"
+          description: >
+            HBM at {{ $value | humanizePercentage }} —
+            allocation will fail soon.
+
+      - alert: CloudTpuOomEventObserved
+        expr: increase(cloud_tpu_error_count_total{error_type="oom"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: memory
+        annotations:
+          summary: "HBM OOM event observed"
+          description: >
+            {{ $value }} OOM event(s) in the last 5 minutes for
+            workload {{ $labels.workload_name }}.
+
+      - alert: CloudTpuMemoryStallHigh
+        expr: cloud_tpu_memory_stall_time_seconds > 0.3
+        for: 5m
+        labels:
+          severity: info
+          component: memory
+        annotations:
+          summary: "Memory stall time elevated"
+          description: >
+            Memory stall time {{ $value }}s suggests the workload is
+            HBM-bandwidth bound.

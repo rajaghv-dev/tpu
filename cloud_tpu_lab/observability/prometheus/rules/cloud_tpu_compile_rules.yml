@@ -1,0 +1,38 @@
+# XLA recompilation alerts.
+#
+# Steady-state training should not be recompiling. A sustained recompile
+# rate above 0.1/s (six per minute) almost always means a shape /
+# dtype / device-assignment is changing per step.
+
+groups:
+  - name: cloud_tpu_compile
+    interval: 30s
+    rules:
+      - record: cloud_tpu_recompile_count_total:rate5m
+        expr: rate(cloud_tpu_recompile_count_total[5m])
+
+      - alert: CloudTpuRecompileRateHigh
+        expr: rate(cloud_tpu_recompile_count_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: xla
+        annotations:
+          summary: "XLA recompilation rate above 0.1/s"
+          description: >
+            Recompile rate is {{ $value }}/s for
+            workload {{ $labels.workload_name }} on
+            {{ $labels.tpu_version }}. Look for varying shapes or
+            dtype mismatches.
+
+      - alert: CloudTpuRecompileBurst
+        expr: increase(cloud_tpu_recompile_count_total[1m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          component: xla
+        annotations:
+          summary: "Burst of XLA recompilations"
+          description: >
+            More than 5 recompiles in the last minute on
+            {{ $labels.tpu_version }}.

@@ -1,0 +1,72 @@
+# Promtail config for cloud_tpu_lab.
+#
+# Tails JSONL log files written by `src/observability/logger.py` and ships
+# them to Loki. The host mounts `cloud_tpu_lab/artifacts/logs/` into the
+# container at `/var/log/cloud_tpu_lab/`.
+#
+# CARDINALITY WARNING
+# -------------------
+# Loki indexes by label, and label cardinality explosion is the single
+# fastest way to break a Loki instance. We promote ONLY these fields to
+# labels:
+#
+#     app   - constant ("cloud_tpu_lab")
+#     layer - small enum (xla, pjrt, hbm, sharding, profiler, ...)
+#     level - small enum (DEBUG, INFO, WARN, ERROR)
+#
+# Fields like `trace_id`, `step_id`, `hlo_op_id`, `executable_id`, ...
+# stay in the log body. They are searchable via `| json` / `| line_format`
+# inside LogQL but NEVER become labels. Do not be tempted to promote
+# trace_id "just for one query" — every distinct trace_id then becomes a
+# new index stream.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: cloud_tpu_lab_jsonl
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cloud_tpu_lab
+          __path__: /var/log/cloud_tpu_lab/*.jsonl
+
+    pipeline_stages:
+      # Parse the JSON line into structured fields.
+      - json:
+          expressions:
+            timestamp: timestamp
+            app: app
+            level: level
+            layer: layer
+            event: event
+            message: message
+            trace_id: trace_id
+
+      # Use the original event timestamp, not the ingest time.
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+          fallback_formats:
+            - "2006-01-02T15:04:05.000Z"
+            - RFC3339
+
+      # Promote ONLY low-cardinality fields to labels. `trace_id` stays in
+      # the log line content (still searchable via `| json | trace_id="..."`).
+      - labels:
+          app:
+          layer:
+          level:
+
+      # Drop empty `message` lines from the body view — they are noise.
+      - output:
+          source: message

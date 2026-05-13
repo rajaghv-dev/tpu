@@ -1,0 +1,112 @@
+# cloud_tpu_lab — local observability stack.
+#
+# Brings up Prometheus + Grafana + Loki + Tempo + Promtail on a single
+# bridge network. Idempotent: `up -d` is safe to re-run, `down -v` removes
+# all named volumes so the next start is clean.
+#
+# The exporter that exposes `cloud_tpu_*` metrics runs on the host, not in
+# a container, so Prometheus reaches it via `host.docker.internal`. On
+# Linux that hostname needs an explicit `extra_hosts` entry — provided
+# below for the prometheus service.
+
+version: "3.9"
+
+networks:
+  cloud_tpu_lab_obs:
+    driver: bridge
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+  loki_data: {}
+  tempo_data: {}
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: cloud_tpu_lab_prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    extra_hosts:
+      # Needed on Linux so `host.docker.internal` resolves to the host —
+      # the cloud_tpu_metrics_exporter listens there on :9100.
+      - "host.docker.internal:host-gateway"
+    networks:
+      - cloud_tpu_lab_obs
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: cloud_tpu_lab_grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - cloud_tpu_lab_obs
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: cloud_tpu_lab_loki
+    restart: unless-stopped
+    command: "-config.file=/etc/loki/loki-config.yml"
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    networks:
+      - cloud_tpu_lab_obs
+
+  tempo:
+    image: grafana/tempo:2.4.0
+    container_name: cloud_tpu_lab_tempo
+    restart: unless-stopped
+    command: "-config.file=/etc/tempo/tempo.yml"
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - cloud_tpu_lab_obs
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: cloud_tpu_lab_promtail
+    restart: unless-stopped
+    depends_on:
+      - loki
+    command: "-config.file=/etc/promtail/promtail-config.yml"
+    ports:
+      - "9080:9080"
+    volumes:
+      - ./loki/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      # Tail JSONL logs the demo writes under cloud_tpu_lab/artifacts/logs/
+      - ../artifacts/logs:/var/log/cloud_tpu_lab:ro
+    networks:
+      - cloud_tpu_lab_obs

@@ -1,0 +1,135 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {
+          "expr": "cloud_tpu_compile_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "first-step compile",
+          "refId": "A"
+        }
+      ],
+      "title": "First-step compile time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {
+          "expr": "rate(cloud_tpu_recompile_count_total{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}[5m])",
+          "legendFormat": "recompiles/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Recompile rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [
+        {
+          "expr": "cloud_tpu_recompile_count_total{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "total recompiles",
+          "refId": "A"
+        }
+      ],
+      "title": "Recompile count (cumulative)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"displayMode": "lcd", "showUnfilled": true},
+      "targets": [
+        {
+          "expr": "cloud_tpu_compile_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "(cache hits proxy — exporter publishes 0/1 via event)",
+          "refId": "A"
+        }
+      ],
+      "title": "Executable cache hits (placeholder — exporter event-driven)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [
+        {
+          "expr": "vector(0)",
+          "legendFormat": "HLO op count (placeholder, sourced from log)",
+          "refId": "A"
+        }
+      ],
+      "title": "HLO op count (placeholder)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "targets": [
+        {
+          "expr": "cloud_tpu_device_execution_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "runtime exec",
+          "refId": "A"
+        }
+      ],
+      "title": "Runtime execution time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "id": 7,
+      "targets": [
+        {
+          "expr": "cloud_tpu_host_overhead_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "host overhead",
+          "refId": "A"
+        }
+      ],
+      "title": "Host overhead",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["cloud_tpu_lab", "xla", "pjrt"],
+  "templating": {
+    "list": [
+      {"name": "workload_name", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_compile_time_seconds, workload_name)", "refId": "wn"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "tpu_version", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_compile_time_seconds, tpu_version)", "refId": "tv"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "framework", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_compile_time_seconds, framework)", "refId": "fw"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "run_mode", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_compile_time_seconds, run_mode)", "refId": "rm"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1}
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Cloud TPU — Compile & Runtime",
+  "uid": "cloud_tpu_compile_runtime",
+  "version": 1,
+  "weekStart": ""
+}

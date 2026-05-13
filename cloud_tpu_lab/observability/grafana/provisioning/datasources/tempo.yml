@@ -1,0 +1,23 @@
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    access: proxy
+    orgId: 1
+    uid: cloud_tpu_lab_tempo
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: cloud_tpu_lab_loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        tags:
+          - key: "service.name"
+            value: "app"
+        filterByTraceID: true
+      serviceMap:
+        datasourceUid: cloud_tpu_lab_prometheus
+      nodeGraph:
+        enabled: true

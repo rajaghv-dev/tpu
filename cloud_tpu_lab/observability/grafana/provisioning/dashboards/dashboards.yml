@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: "cloud_tpu_lab"
+    orgId: 1
+    folder: "cloud_tpu_lab"
+    folderUid: cloud_tpu_lab_folder
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

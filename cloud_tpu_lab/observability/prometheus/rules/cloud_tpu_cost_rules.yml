@@ -1,0 +1,38 @@
+# Cost recording rules.
+#
+# These are pure recording rules — no alerts. Cost is a derived metric
+# the exporter publishes as `cloud_tpu_cost_per_step` and
+# `cloud_tpu_cost_per_token`; here we expose smoothed views over short
+# windows so dashboards can render stable lines.
+
+groups:
+  - name: cloud_tpu_cost
+    interval: 30s
+    rules:
+      - record: cloud_tpu_cost_per_step:rate1m
+        expr: avg_over_time(cloud_tpu_cost_per_step[1m])
+
+      - record: cloud_tpu_cost_per_token:rate5m
+        expr: avg_over_time(cloud_tpu_cost_per_token[5m])
+
+      - record: cloud_tpu_tokens_per_dollar:rate5m
+        expr: |
+          avg_over_time(cloud_tpu_tokens_per_second[5m])
+          /
+          clamp_min(avg_over_time(cloud_tpu_cost_per_step[5m])
+                    / clamp_min(avg_over_time(cloud_tpu_step_time_seconds[5m]), 0.001),
+                    0.000001)
+
+      - record: cloud_tpu_samples_per_dollar:rate5m
+        expr: |
+          avg_over_time(cloud_tpu_samples_per_second[5m])
+          /
+          clamp_min(avg_over_time(cloud_tpu_cost_per_step[5m])
+                    / clamp_min(avg_over_time(cloud_tpu_step_time_seconds[5m]), 0.001),
+                    0.000001)
+
+      - record: cloud_tpu_utilization_adjusted_cost:rate5m
+        expr: |
+          avg_over_time(cloud_tpu_cost_per_step[5m])
+          /
+          clamp_min(avg_over_time(cloud_tpu_matrix_unit_utilization_ratio[5m]), 0.01)

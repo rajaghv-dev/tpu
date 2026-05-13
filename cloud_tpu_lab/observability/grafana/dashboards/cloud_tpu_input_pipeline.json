@@ -1,0 +1,119 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {
+          "expr": "cloud_tpu_input_wait_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "input wait",
+          "refId": "A"
+        }
+      ],
+      "title": "Input wait time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {
+          "expr": "vector(0)",
+          "legendFormat": "prefetch depth (placeholder)",
+          "refId": "A"
+        }
+      ],
+      "title": "Prefetch depth (placeholder)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [
+        {
+          "expr": "cloud_tpu_host_overhead_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "host overhead (proxy: data load + preprocess)",
+          "refId": "A"
+        }
+      ],
+      "title": "Data loading + preprocessing time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [
+        {
+          "expr": "cloud_tpu_step_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"} - cloud_tpu_device_execution_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "device idle (step - device exec)",
+          "refId": "A"
+        }
+      ],
+      "title": "Device idle time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [
+        {
+          "expr": "cloud_tpu_input_wait_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"} / clamp_min(cloud_tpu_step_time_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}, 0.001)",
+          "legendFormat": "input wait ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Input wait ratio (alerts above 0.25)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "targets": [
+        {
+          "expr": "cloud_tpu_host_overhead_seconds{workload_name=~\"$workload_name\",tpu_version=~\"$tpu_version\",framework=~\"$framework\",run_mode=~\"$run_mode\"}",
+          "legendFormat": "host CPU overhead",
+          "refId": "A"
+        }
+      ],
+      "title": "Host CPU overhead",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["cloud_tpu_lab", "input_pipeline"],
+  "templating": {
+    "list": [
+      {"name": "workload_name", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_input_wait_time_seconds, workload_name)", "refId": "wn"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "tpu_version", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_input_wait_time_seconds, tpu_version)", "refId": "tv"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "framework", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_input_wait_time_seconds, framework)", "refId": "fw"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "run_mode", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(cloud_tpu_input_wait_time_seconds, run_mode)", "refId": "rm"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1}
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Cloud TPU — Input Pipeline",
+  "uid": "cloud_tpu_input_pipeline",
+  "version": 1,
+  "weekStart": ""
+}

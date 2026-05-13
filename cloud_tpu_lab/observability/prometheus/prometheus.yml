@@ -1,0 +1,30 @@
+# Prometheus config for the cloud_tpu_lab local stack.
+#
+# The exporter (`observability/exporters/cloud_tpu_metrics_exporter.py`)
+# runs on the host, not in a container, so we scrape it via
+# `host.docker.internal`. The docker-compose.yml maps that name to
+# `host-gateway` for Linux compatibility.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: "cloud_tpu_lab"
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+scrape_configs:
+  # Prometheus scraping itself — useful for diagnosing the stack.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The cloud_tpu_lab Python exporter.
+  - job_name: "cloud_tpu_metrics_exporter"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+        labels:
+          app: "cloud_tpu_lab"
+          source: "exporter"

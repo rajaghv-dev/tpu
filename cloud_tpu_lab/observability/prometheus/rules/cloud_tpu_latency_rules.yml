@@ -1,0 +1,55 @@
+# Step-time and compile-time alerts.
+#
+# `cloud_tpu_step_time_seconds` is exported as a Gauge in the lab stack
+# (not a Histogram), so the p95 quantile is computed via a recording rule
+# over a 5-minute window. If you swap the exporter to a Histogram, drop
+# the recording rule and use `histogram_quantile` directly on the
+# `_bucket` series.
+
+groups:
+  - name: cloud_tpu_latency
+    interval: 30s
+    rules:
+      - record: cloud_tpu_step_time_seconds:p95_5m
+        expr: quantile_over_time(0.95, cloud_tpu_step_time_seconds[5m])
+
+      - record: cloud_tpu_step_time_seconds:p50_5m
+        expr: quantile_over_time(0.50, cloud_tpu_step_time_seconds[5m])
+
+      - alert: CloudTpuStepTimeP95High
+        expr: cloud_tpu_step_time_seconds:p95_5m > 1
+        for: 2m
+        labels:
+          severity: warning
+          component: runtime
+        annotations:
+          summary: "Cloud TPU step p95 above 1s"
+          description: >
+            P95 step time over the last 5m is {{ $value }}s for
+            workload {{ $labels.workload_name }} on
+            {{ $labels.tpu_version }}.
+
+      - alert: CloudTpuFirstStepSlow
+        expr: cloud_tpu_compile_time_seconds > 60
+        for: 1m
+        labels:
+          severity: warning
+          component: xla
+        annotations:
+          summary: "First-step compile time exceeds 60s"
+          description: >
+            cloud_tpu_compile_time_seconds is {{ $value }}s for
+            workload {{ $labels.workload_name }}. Investigate XLA
+            executable cache hits and HLO op count.
+
+      - alert: CloudTpuDeviceExecutionTimeHigh
+        expr: cloud_tpu_device_execution_time_seconds > 0.8
+        for: 5m
+        labels:
+          severity: info
+          component: pjrt
+        annotations:
+          summary: "Device execution time elevated"
+          description: >
+            Device execution time {{ $value }}s suggests
+            compute-bound steps on {{ $labels.tpu_version }}.
