@@ -1,29 +1,74 @@
-# Training task registry — Stage 1.6 (training observability layer).
+# Training task registry — Stage 1.6+ (training observability layer).
 #
 # Each entry is a complete training-experiment specification. Synthetic
 # inputs (numpy seed=42) — same hardware-only-comparison philosophy as
-# benchmarks/. No real datasets.
+# benchmarks/. No real datasets, no data plumbing — every byte of the
+# input batch is generated on the fly. That keeps the runner self-contained
+# and means timings reflect *only* the model + optimizer + accelerator
+# stack, not data-loading idiosyncrasies.
 #
-# Schema:
-#   id              — registry key
-#   hf_id           — HuggingFace pretrained checkpoint to start from
-#   task            — sequence-classification | causal-lm | image-classification
-#   domain          — for dashboard grouping
-#   precision       — bf16 default; fp32 for validation
+# Schema (additions vs. earlier revisions marked *new*):
+#   id                       — registry key
+#   hf_id                    — HuggingFace pretrained checkpoint to start from
+#   task                     — sequence-classification | causal-lm | image-classification
+#   domain                   — dashboard grouping
+#   architecture_family      — transformer_encoder | transformer_decoder | cnn | vit_hierarchical
+#   attention_variant        — mha | gqa | mqa | none
+#   positional_encoding      — absolute | rope | alibi | none
+#   is_moe                   — bool
+#   gated, risk_level        — same semantics as models/registry.yaml
 #   total_params_M, active_params_M — for cost/MFU dashboards
-#   input_type      — text | image | image_text
-#   default_seq_len, vocab_size — synthetic input shape
-#   default_batch_size — per-step batch
-#   num_labels      — for classification heads
-#   default_steps   — training-loop length (smoke shortens this)
-#   default_eval_steps — eval phase length
-#   default_lr      — peak LR
-#   default_warmup_steps — LR linear warmup
+#   input_type               — text | image
+#   default_seq_len, vocab_size — text inputs only
+#   image_size               — image inputs only ([C,H,W])
+#   default_batch_size       — per-step micro-batch
+#   num_labels               — classification heads only
+#   default_steps            — training-loop length (smoke suite shortens this)
+#   default_eval_steps       — eval phase length
+#   default_lr               — peak LR
+#   default_warmup_steps     — LR linear warmup
 #   default_weight_decay
-#   default_optimizer — adamw | sgd
-#   gated, risk_level — same semantics as models/registry.yaml
+#   default_optimizer        — adamw | sgd | lion | adafactor
+#   default_max_grad_norm    — *new* global-norm clipping threshold (0.0 disables)
+#   default_grad_accum_steps — *new* gradient accumulation (1 = no accumulation)
+#   default_lr_schedule      — *new* linear | cosine | constant
+#
+# Sizing convention: defaults are chosen to fit a single v5e-1 chip (16 GB
+# HBM) without gradient checkpointing. Batch sizes were dialed in by hand
+# to leave ≈30 % HBM headroom for attention + optimizer state.
 
 tasks:
+
+  # ───────────────────────────────────────────────────────────────────────
+  # NLP — encoder / sequence classification
+  # ───────────────────────────────────────────────────────────────────────
+
+  - id: distilbert_finetune
+    hf_id: distilbert-base-uncased
+    task: sequence-classification
+    domain: nlp_encoder
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 66
+    active_params_M: 66
+    input_type: text
+    vocab_size: 30522
+    default_seq_len: 128
+    default_batch_size: 64
+    num_labels: 2
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 5.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: linear
 
   - id: bert_finetune
     hf_id: bert-base-uncased
@@ -48,3 +93,348 @@ tasks:
     default_warmup_steps: 20
     default_weight_decay: 0.01
     default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: linear
+
+  - id: roberta_base_finetune
+    hf_id: roberta-base
+    task: sequence-classification
+    domain: nlp_encoder
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 125
+    active_params_M: 125
+    input_type: text
+    vocab_size: 50265
+    default_seq_len: 128
+    default_batch_size: 32
+    num_labels: 2
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 2.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: linear
+
+  - id: bert_large_finetune
+    # Larger encoder. ~3× bert-base — exercises HBM pressure and attention
+    # cost on a single v5e-1; the harness will OOM if seq_len > 256 here.
+    hf_id: bert-large-uncased
+    task: sequence-classification
+    domain: nlp_encoder
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: medium
+    total_params_M: 340
+    active_params_M: 340
+    input_type: text
+    vocab_size: 30522
+    default_seq_len: 128
+    default_batch_size: 16
+    num_labels: 2
+    default_steps: 100
+    default_eval_steps: 10
+    default_lr: 1.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 2
+    default_lr_schedule: linear
+
+  # ───────────────────────────────────────────────────────────────────────
+  # NLP — decoder / causal-LM
+  # ───────────────────────────────────────────────────────────────────────
+
+  - id: distilgpt2_lm
+    hf_id: distilgpt2
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 82
+    active_params_M: 82
+    input_type: text
+    vocab_size: 50257
+    default_seq_len: 256
+    default_batch_size: 16
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 5.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine
+
+  - id: gpt2_lm
+    hf_id: gpt2
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 124
+    active_params_M: 124
+    input_type: text
+    vocab_size: 50257
+    default_seq_len: 256
+    default_batch_size: 8
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 5.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine
+
+  - id: gpt2_medium_lm
+    # 355M-parameter decoder. The crossover point on v5e-1 between "fits in
+    # a single chip with room to spare" and "needs gradient accumulation
+    # to stay below 16 GB HBM at batch_size=8". Use accum=2.
+    hf_id: gpt2-medium
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: medium
+    total_params_M: 355
+    active_params_M: 355
+    input_type: text
+    vocab_size: 50257
+    default_seq_len: 256
+    default_batch_size: 4
+    default_steps: 100
+    default_eval_steps: 5
+    default_lr: 3.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 4
+    default_lr_schedule: cosine
+
+  - id: gpt2_large_lm
+    # 774M params — does NOT fit on a v5e-1 with adamw. Marked high-risk so
+    # the smoke suite skips it; useful for v5p-1 or v5e-4 mesh runs once
+    # multi-host comes online (Stage 3).
+    hf_id: gpt2-large
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: high
+    total_params_M: 774
+    active_params_M: 774
+    input_type: text
+    vocab_size: 50257
+    default_seq_len: 256
+    default_batch_size: 2
+    default_steps: 50
+    default_eval_steps: 5
+    default_lr: 2.0e-5
+    default_warmup_steps: 10
+    default_weight_decay: 0.01
+    default_optimizer: adafactor
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 8
+    default_lr_schedule: cosine
+
+  - id: pythia_70m_lm
+    # Modern decoder arch: RoPE positional, GELU MLP, layernorm parallel
+    # residual stream. Tiny enough to iterate on quickly while still
+    # exercising the same hot path as full Pythia / Llama families.
+    hf_id: EleutherAI/pythia-70m
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: rope
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 70
+    active_params_M: 70
+    input_type: text
+    vocab_size: 50304
+    default_seq_len: 512
+    default_batch_size: 16
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 1.0e-4
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine
+
+  - id: pythia_160m_lm
+    hf_id: EleutherAI/pythia-160m
+    task: causal-lm
+    domain: nlp_decoder
+    architecture_family: transformer_decoder
+    attention_variant: mha
+    positional_encoding: rope
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 160
+    active_params_M: 160
+    input_type: text
+    vocab_size: 50304
+    default_seq_len: 512
+    default_batch_size: 8
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 6.0e-5
+    default_warmup_steps: 20
+    default_weight_decay: 0.01
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Vision — image classification
+  # ───────────────────────────────────────────────────────────────────────
+
+  - id: vit_b16_finetune
+    # Vision Transformer base, 16-pixel patches → 14×14=196 tokens at 224².
+    # Patch embedding is the only non-attention work; otherwise this is the
+    # same hot path as a text encoder.
+    hf_id: google/vit-base-patch16-224
+    task: image-classification
+    domain: vision_cls
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 86
+    active_params_M: 86
+    input_type: image
+    image_size: [3, 224, 224]
+    default_batch_size: 32
+    num_labels: 1000
+    default_steps: 100
+    default_eval_steps: 10
+    default_lr: 3.0e-5
+    default_warmup_steps: 10
+    default_weight_decay: 0.05
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine
+
+  - id: vit_l16_finetune
+    # Large ViT — 304M params. On v5e-1 needs accum=2 at batch=8.
+    hf_id: google/vit-large-patch16-224
+    task: image-classification
+    domain: vision_cls
+    architecture_family: transformer_encoder
+    attention_variant: mha
+    positional_encoding: absolute
+    is_moe: false
+    gated: false
+    risk_level: medium
+    total_params_M: 304
+    active_params_M: 304
+    input_type: image
+    image_size: [3, 224, 224]
+    default_batch_size: 8
+    num_labels: 1000
+    default_steps: 50
+    default_eval_steps: 5
+    default_lr: 1.0e-5
+    default_warmup_steps: 10
+    default_weight_decay: 0.05
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 2
+    default_lr_schedule: cosine
+
+  - id: resnet50_finetune
+    # Classic CNN — convolution-dominated. Good control for transformer
+    # vs. CNN throughput comparisons on the same image inputs.
+    hf_id: microsoft/resnet-50
+    task: image-classification
+    domain: vision_cls
+    architecture_family: cnn
+    attention_variant: none
+    positional_encoding: none
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 25
+    active_params_M: 25
+    input_type: image
+    image_size: [3, 224, 224]
+    default_batch_size: 64
+    num_labels: 1000
+    default_steps: 200
+    default_eval_steps: 10
+    default_lr: 1.0e-3
+    default_warmup_steps: 20
+    default_weight_decay: 1.0e-4
+    default_optimizer: sgd
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine
+
+  - id: swin_t_finetune
+    # Swin Transformer Tiny — hierarchical windowed attention. Useful
+    # contrast with plain ViT to stress different attention shapes on
+    # the same XLA backend.
+    hf_id: microsoft/swin-tiny-patch4-window7-224
+    task: image-classification
+    domain: vision_cls
+    architecture_family: vit_hierarchical
+    attention_variant: mha
+    positional_encoding: relative
+    is_moe: false
+    gated: false
+    risk_level: low
+    total_params_M: 28
+    active_params_M: 28
+    input_type: image
+    image_size: [3, 224, 224]
+    default_batch_size: 64
+    num_labels: 1000
+    default_steps: 100
+    default_eval_steps: 10
+    default_lr: 5.0e-5
+    default_warmup_steps: 10
+    default_weight_decay: 0.05
+    default_optimizer: adamw
+    default_max_grad_norm: 1.0
+    default_grad_accum_steps: 1
+    default_lr_schedule: cosine

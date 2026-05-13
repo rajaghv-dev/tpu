@@ -25,3 +25,7 @@ otelcol-contrib_*.tar.gz
 .tpu-bench-state/
 # Per-run tmux tee logs from 50_run_smoke.sh / 51_run_quick.sh
 results/*.log
+
+# HF tokens — never commit, even if the user drops a stray copy here.
+.hf-token
+*.hf-token

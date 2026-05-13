@@ -1,19 +1,39 @@
 #!/usr/bin/env python3
 """
-Training harness — Stage 1.6 CLI for train/runner.py.
+Training harness — Stage 1.6+ CLI for train/runner.py.
 
-Mirrors benchmarks/harness.py. Auto-registers the default-on training probe
-set (Timing, Memory, InputFingerprint, TrainingMetrics, StepTiming, Checkpoint)
+Mirrors benchmarks/harness.py. Auto-registers a probe set (minimal/default/full)
 unless --probes none is passed.
 
-Usage examples:
+## Usage examples
+
   python -m train.harness --suite smoke --device tpu
   python -m train.harness --task bert_finetune --device cpu --steps 5 --dry-run
-  python -m train.harness --task bert_finetune --device tpu --probes full
+  python -m train.harness --task gpt2_lm --device tpu --probes full
+  python -m train.harness --suite diverse --device tpu --probes default
+  python -m train.harness --task gpt2_medium_lm --grad-accum 8 --max-grad-norm 1.0
 
-Suites:
-  smoke  — bert_finetune · 10 steps · BF16 · ~1 min on v5e-1
-  quick  — bert_finetune · 200 steps · BF16 · ~5 min on v5e-1
+## Suites
+
+  smoke         — bert · 10 steps · BF16 · ~1 min on v5e-1
+  quick         — bert · 200 steps · BF16 · ~5 min on v5e-1
+  causal_smoke  — distilgpt2 · 10 steps · BF16 · ~1 min
+  causal_quick  — gpt2 · 100 steps · BF16 · ~5 min
+  vit_smoke     — vit-base · 10 steps · BF16 · ~1 min
+  vit_quick     — vit-base · 100 steps · BF16 · ~5 min
+  diverse       — one tiny task from each domain (bert + distilgpt2 + resnet50)
+                  · 20 steps each · sanity-check the whole task dispatch
+  scaling       — distilgpt2 → gpt2 → gpt2-medium · 50 steps each · shows
+                  how per-step time grows with parameter count
+
+## Probe sets
+
+  none     — no probes
+  minimal  — Timing, Memory, TrainingMetrics, StepTiming (≈zero overhead)
+  default  — minimal + InputFingerprint, Checkpoint, DeviceInfo,
+             Determinism, XlaCompile (one-shot setup, no per-step cost)
+  full     — default + PowerThermal (1 Hz background sampler) + heavy
+             opt-in probes (JaxProfiler, HloDump, OTel, CloudMonitoring)
 
 Results append to results/training_runs.jsonl (separate index from inference).
 """
@@ -24,7 +44,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from observe.checkpoint_probe import CheckpointProbe
 from observe.input_fingerprint import InputFingerprintProbe
@@ -53,6 +73,52 @@ SUITES: Dict[str, Dict[str, Any]] = {
         "n_steps": 200,
         "n_eval_steps": 10,
         "description": "1 task · 200 steps · BF16 · ~5 min on v5e-1",
+    },
+    "causal_smoke": {
+        "task_ids": ["distilgpt2_lm"],
+        "precisions": ["bf16"],
+        "n_steps": 10,
+        "n_eval_steps": 2,
+        "description": "distilgpt2 · 10 steps · BF16 · ~1 min on v5e-1",
+    },
+    "causal_quick": {
+        "task_ids": ["gpt2_lm"],
+        "precisions": ["bf16"],
+        "n_steps": 100,
+        "n_eval_steps": 5,
+        "description": "gpt2 · 100 steps · BF16 · ~5 min on v5e-1",
+    },
+    "vit_smoke": {
+        "task_ids": ["vit_b16_finetune"],
+        "precisions": ["bf16"],
+        "n_steps": 10,
+        "n_eval_steps": 2,
+        "description": "vit-base · 10 steps · BF16 · ~1 min on v5e-1",
+    },
+    "vit_quick": {
+        "task_ids": ["vit_b16_finetune"],
+        "precisions": ["bf16"],
+        "n_steps": 100,
+        "n_eval_steps": 5,
+        "description": "vit-base · 100 steps · BF16 · ~5 min on v5e-1",
+    },
+    "diverse": {
+        # One small task per domain — exercises every task dispatch path in
+        # the runner. Useful as a CI gate after touching _build_train_step.
+        "task_ids": ["bert_finetune", "distilgpt2_lm", "resnet50_finetune"],
+        "precisions": ["bf16"],
+        "n_steps": 20,
+        "n_eval_steps": 3,
+        "description": "3 tasks (bert + distilgpt2 + resnet50) · 20 steps each",
+    },
+    "scaling": {
+        # Same task family at three different scales — for per-step-time
+        # vs. parameter-count plots. distilgpt2 → gpt2 → gpt2-medium.
+        "task_ids": ["distilgpt2_lm", "gpt2_lm", "gpt2_medium_lm"],
+        "precisions": ["bf16"],
+        "n_steps": 50,
+        "n_eval_steps": 3,
+        "description": "scaling sweep: distilgpt2 (82M) → gpt2 (124M) → gpt2-medium (355M)",
     },
 }
 
@@ -84,8 +150,24 @@ def build_config(
     n_steps_override: Optional[int] = None,
     n_eval_steps_override: Optional[int] = None,
     save_checkpoint: bool = False,
+    overrides: Optional[Dict[str, Any]] = None,
 ):
+    """
+    Build a TrainingExperimentConfig from a registry entry.
+
+    `overrides` is a dict of CLI-provided knobs that beat the registry default
+    (e.g. {"max_grad_norm": 0.5, "optimizer": "lion"}). Keys not present in
+    `overrides` fall through to the registry value, then to the dataclass
+    default.
+    """
     from train.runner import TrainingExperimentConfig
+    overrides = overrides or {}
+
+    def pick(cli_key: str, registry_key: str, fallback: Any) -> Any:
+        if cli_key in overrides and overrides[cli_key] is not None:
+            return overrides[cli_key]
+        return entry.get(registry_key, fallback)
+
     return TrainingExperimentConfig(
         task_id=entry["id"],
         hf_id=entry["hf_id"],
@@ -105,16 +187,26 @@ def build_config(
         batch_size=entry.get("default_batch_size", 32),
         vocab_size=entry.get("vocab_size", 30522),
         num_labels=entry.get("num_labels", 2),
-        n_steps=n_steps_override
+        image_size=entry.get("image_size"),
+        n_steps=(
+            n_steps_override
             if n_steps_override is not None
-            else entry.get("default_steps", 200),
-        n_eval_steps=n_eval_steps_override
+            else entry.get("default_steps", 200)
+        ),
+        n_eval_steps=(
+            n_eval_steps_override
             if n_eval_steps_override is not None
-            else entry.get("default_eval_steps", 10),
+            else entry.get("default_eval_steps", 10)
+        ),
         lr=entry.get("default_lr", 2.0e-5),
         lr_warmup_steps=entry.get("default_warmup_steps", 20),
+        lr_schedule=pick("lr_schedule", "default_lr_schedule", "linear"),
         weight_decay=entry.get("default_weight_decay", 0.01),
-        optimizer=entry.get("default_optimizer", "adamw"),
+        optimizer=pick("optimizer", "default_optimizer", "adamw"),
+        max_grad_norm=pick("max_grad_norm", "default_max_grad_norm", 1.0),
+        grad_accum_steps=pick("grad_accum_steps", "default_grad_accum_steps", 1),
+        eval_seed=overrides.get("eval_seed", 1337),
+        deterministic=overrides.get("deterministic", False),
         save_checkpoint=save_checkpoint,
         device_cost_usd_per_hr=DEVICE_COSTS.get(device, 0.0),
     )
@@ -123,67 +215,89 @@ def build_config(
 # ── Probe wiring ──────────────────────────────────────────────────────────────
 
 
-def _register_probe_set(name: str) -> List[str]:
+def _try_import_optional(module_path: str, class_name: str) -> Optional[Any]:
+    """Import a probe class lazily; return None on any failure."""
+    try:
+        mod = __import__(module_path, fromlist=[class_name])
+        return getattr(mod, class_name)
+    except Exception:  # noqa: BLE001 — any failure → optional probe is skipped
+        return None
+
+
+def _register_probe_set(name: str) -> Tuple[List[str], List[str]]:
     """
     Register a named probe set onto the global probe registry.
 
+    Returns (registered_names, skipped_optional_names). The skipped list lets
+    the harness print "PowerThermal skipped (missing nvidia-smi/psutil)" so
+    users know what's missing rather than wondering why the file isn't there.
+
     Sets:
-      none    — clear all
-      default — Timing + Memory + InputFingerprint + TrainingMetrics + StepTiming
-      full    — default + CheckpointProbe + JaxProfilerProbe + HloDumpProbe
-                + OTelProbe + CloudMonitoringProbe
+      none     — clear all
+      minimal  — Timing + Memory + TrainingMetrics + StepTiming
+      default  — minimal + InputFingerprint + Checkpoint + DeviceInfo +
+                 Determinism + XlaCompile
+      full     — default + PowerThermal + JaxProfiler + HloDump +
+                 OTel + CloudMonitoring
     """
     clear_probes()
     if name == "none":
-        return []
+        return [], []
 
-    probes = [
+    # Always-on baseline (these have no optional deps beyond stdlib + psutil
+    # which both degrade gracefully).
+    probes: List[Any] = [
         TimingProbe(),
         MemoryProbe(),
-        InputFingerprintProbe(),
         TrainingMetricsProbe(),
         StepTimingProbe(),
     ]
+    skipped: List[str] = []
+
+    if name in ("default", "full"):
+        probes.extend([
+            InputFingerprintProbe(),
+            CheckpointProbe(),
+        ])
+        # The new Stage-1.6 observability probes — one-shot setup, no
+        # per-step cost. We treat them as optional in case the file fails
+        # to import on an older codebase.
+        for module_path, cls_name in (
+            ("observe.device_info_probe", "DeviceInfoProbe"),
+            ("observe.determinism_probe", "DeterminismProbe"),
+            ("observe.xla_compile_probe", "XlaCompileProbe"),
+        ):
+            cls = _try_import_optional(module_path, cls_name)
+            if cls is None:
+                skipped.append(cls_name)
+            else:
+                probes.append(cls())
+
     if name == "full":
         # Heavy / opt-in probes. Imported lazily so a missing optional dep
-        # (otel, google-cloud-monitoring) only matters when "full" is asked.
-        try:
-            from observe.checkpoint_probe import CheckpointProbe as _Cp
-            probes.append(_Cp())
-        except Exception:
-            pass
-        try:
-            from observe.jax_profiler_probe import JaxProfilerProbe
-            probes.append(JaxProfilerProbe())
-        except Exception:
-            pass
-        try:
-            from observe.hlo_dump_probe import HloDumpProbe
-            probes.append(HloDumpProbe())
-        except Exception:
-            pass
-        try:
-            from observe.otel_probe import OTelProbe
-            probes.append(OTelProbe())
-        except Exception:
-            pass
-        try:
-            from observe.cloud_monitoring_probe import CloudMonitoringProbe
-            probes.append(CloudMonitoringProbe())
-        except Exception:
-            pass
-    elif name == "default":
-        # Default already includes CheckpointProbe — small overhead, useful.
-        probes.append(CheckpointProbe())
+        # (otel, google-cloud-monitoring, nvidia-smi) only matters when
+        # "full" is asked.
+        for module_path, cls_name in (
+            ("observe.power_thermal_probe", "PowerThermalProbe"),
+            ("observe.jax_profiler_probe", "JaxProfilerProbe"),
+            ("observe.hlo_dump_probe", "HloDumpProbe"),
+            ("observe.otel_probe", "OTelProbe"),
+            ("observe.cloud_monitoring_probe", "CloudMonitoringProbe"),
+        ):
+            cls = _try_import_optional(module_path, cls_name)
+            if cls is None:
+                skipped.append(cls_name)
+            else:
+                probes.append(cls())
 
-    names = []
+    names: List[str] = []
     for p in probes:
         try:
             register_probe(p)
             names.append(p.name)
         except ValueError:
             pass  # already registered
-    return names
+    return names, skipped
 
 
 def append_result(result: dict, output_path: Path) -> None:
@@ -205,8 +319,10 @@ def run_suite(
     output_path: Path,
     registry_path: Optional[str],
     dry_run: bool,
+    overrides: Optional[Dict[str, Any]] = None,
 ) -> int:
     registry = load_registry(registry_path)
+    overrides = overrides or {}
 
     if task_id:
         tasks = [t for t in registry if t["id"] == task_id]
@@ -226,9 +342,21 @@ def run_suite(
         suite = SUITES[suite_name]
         tasks = [t for t in registry if t["id"] in suite["task_ids"]]
         precisions = suite["precisions"]
-        n_steps = suite["n_steps"]
-        n_eval = suite["n_eval_steps"]
+        n_steps = n_steps_override if n_steps_override is not None else suite["n_steps"]
+        n_eval = (
+            n_eval_steps_override
+            if n_eval_steps_override is not None
+            else suite["n_eval_steps"]
+        )
         print(f"Suite: {suite_name} — {suite['description']}")
+        # If the suite references tasks not yet in the registry, warn — the
+        # next refactor will skip them rather than silently shrink the suite.
+        missing = set(suite["task_ids"]) - {t["id"] for t in tasks}
+        if missing:
+            print(
+                f"[warn] suite references unknown tasks: {sorted(missing)}",
+                file=sys.stderr,
+            )
     else:
         print("[error] provide --suite or --task", file=sys.stderr)
         return -1
@@ -239,6 +367,7 @@ def run_suite(
             n_steps_override=n_steps,
             n_eval_steps_override=n_eval,
             save_checkpoint=save_checkpoint,
+            overrides=overrides,
         )
         for t in tasks for prec in precisions
     ]
@@ -247,16 +376,26 @@ def run_suite(
     if dry_run:
         for cfg in configs:
             print(
-                f"  [dry-run] {cfg.task_id} | {cfg.precision} | {cfg.device} | "
-                f"steps={cfg.n_steps} bs={cfg.batch_size} seq={cfg.seq_len}"
+                f"  [dry-run] {cfg.task_id} | {cfg.task} | {cfg.precision} | "
+                f"{cfg.device} | steps={cfg.n_steps} bs={cfg.batch_size} "
+                f"seq={cfg.seq_len} opt={cfg.optimizer} "
+                f"clip={cfg.max_grad_norm} accum={cfg.grad_accum_steps} "
+                f"sched={cfg.lr_schedule}"
+                + (" [deterministic]" if cfg.deterministic else "")
             )
         return 0
 
-    registered = _register_probe_set(probes_set)
+    registered, skipped = _register_probe_set(probes_set)
     if registered:
         print(f"Probes ({probes_set}): {', '.join(registered)}")
     else:
         print("Probes: none")
+    if skipped:
+        print(
+            f"Probes skipped ({probes_set}, optional dep missing): "
+            f"{', '.join(skipped)}",
+            file=sys.stderr,
+        )
 
     # Lazy import — see top-of-file note.
     from benchmarks.runner import BenchmarkError
@@ -265,18 +404,25 @@ def run_suite(
     completed = 0
     failed = 0
     for cfg in configs:
-        label = f"{cfg.task_id} | {cfg.precision} | {cfg.device} | steps={cfg.n_steps}"
+        label = (
+            f"{cfg.task_id} | {cfg.task} | {cfg.precision} | {cfg.device} | "
+            f"steps={cfg.n_steps}"
+        )
         print(f"\n▶ {label}", flush=True)
         t0 = time.time()
         try:
             result = run_training(cfg)
             append_result(result, output_path)
             elapsed = time.time() - t0
+            extra = ""
+            if result.get("eval_perplexity") is not None:
+                extra = f"  ppl={result.get('eval_perplexity'):.2f}"
             print(
                 f"  ✓ {elapsed:.1f}s  "
                 f"final_loss={result.get('final_train_loss'):.4f}  "
                 f"eval_loss={result.get('eval_loss'):.4f}  "
                 f"throughput={result.get('throughput_samples_sec'):.0f} smp/s"
+                + extra
             )
             completed += 1
         except BenchmarkError as exc:
@@ -325,9 +471,10 @@ def run_suite(
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="train.harness",
-        description="TPU × GPU training observability harness (Stage 1.6).",
+        description="TPU × GPU training observability harness (Stage 1.6+).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="\n".join(f"  {k}: {v['description']}" for k, v in SUITES.items()),
+        epilog="Suites:\n"
+        + "\n".join(f"  {k}: {v['description']}" for k, v in SUITES.items()),
     )
     g = p.add_mutually_exclusive_group()
     g.add_argument("--suite", choices=list(SUITES))
@@ -342,8 +489,30 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--eval-steps", dest="n_eval_steps", type=int, default=None)
     p.add_argument("--save-checkpoint", action="store_true",
                    help="Write a final-state checkpoint to run_logs/<run_id>/checkpoints/")
-    p.add_argument("--probes", default="default", choices=["none", "default", "full"],
-                   help="Probe set to auto-register (default: default)")
+
+    # ── Training controllability flags (override registry defaults) ───────
+    p.add_argument("--optimizer", choices=["adamw", "sgd", "lion", "adafactor"],
+                   default=None, help="Override registry optimizer choice")
+    p.add_argument("--lr-schedule", choices=["linear", "cosine", "constant"],
+                   dest="lr_schedule", default=None,
+                   help="Override registry LR schedule")
+    p.add_argument("--max-grad-norm", dest="max_grad_norm", type=float, default=None,
+                   help="Global-norm clip threshold (0.0 disables; overrides registry)")
+    p.add_argument("--grad-accum", dest="grad_accum_steps", type=int, default=None,
+                   help="Gradient accumulation steps (1 = no accumulation)")
+    p.add_argument("--eval-seed", dest="eval_seed", type=int, default=None,
+                   help="RNG seed for eval batches (default: 1337)")
+    p.add_argument("--deterministic", action="store_true",
+                   help="Toggle XLA + matmul-precision flags for bit-reproducibility "
+                        "(slower; requires CUBLAS_WORKSPACE_CONFIG and XLA_FLAGS set "
+                        "externally for full effect)")
+
+    # ── Probe / output flags ──────────────────────────────────────────────
+    p.add_argument(
+        "--probes", default="default",
+        choices=["none", "minimal", "default", "full"],
+        help="Probe set to auto-register (default: default)",
+    )
     p.add_argument("--output", default=str(_REPO_ROOT / "results" / "training_runs.jsonl"),
                    help="Output JSONL (default: results/training_runs.jsonl)")
     p.add_argument("--registry", default=None, help="Override path to train/registry.yaml")
@@ -354,6 +523,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = _build_parser().parse_args(argv)
+    overrides = {
+        "optimizer": args.optimizer,
+        "lr_schedule": args.lr_schedule,
+        "max_grad_norm": args.max_grad_norm,
+        "grad_accum_steps": args.grad_accum_steps,
+        "eval_seed": args.eval_seed,
+        "deterministic": bool(args.deterministic),
+    }
     n = run_suite(
         suite_name=args.suite,
         task_id=args.task_id,
@@ -367,6 +544,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         output_path=Path(args.output),
         registry_path=args.registry,
         dry_run=args.dry_run,
+        overrides=overrides,
     )
     return 0 if n >= 0 else 1
 
