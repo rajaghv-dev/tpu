@@ -1,39 +1,41 @@
 .PHONY: test test-fast test-verbose dry-run smoke-cpu lint dashboard help otel-collect otel-view otel-down gcp-bootstrap gcp-check gcp-budget tpus-kill tpus-list cache-env cache-status cache-wheels-build cache-models-upload cache-xla-upload colab-notebook colab-open setup-hf check-hf
 
+PYTHON ?= python3
+
 # ── Testing ────────────────────────────────────────────────────────────────────
 
 test:
-	python -m pytest tests/ -v
+	python3 -m pytest tests/ -v
 
 test-fast:
-	python -m pytest tests/ -q
+	python3 -m pytest tests/ -q
 
 test-verbose:
-	python -m pytest tests/ -v --tb=long
+	python3 -m pytest tests/ -v --tb=long
 
 # ── Benchmark ──────────────────────────────────────────────────────────────────
 
 dry-run:
-	python benchmarks/harness.py --suite quick --device cpu --dry-run
+	python3 -m benchmarks.harness --suite quick --device cpu --dry-run
 
 smoke-cpu:
 	## Run smoke suite on CPU-JAX (no TPU/GPU download needed — for local dev)
-	JAX_PLATFORMS=cpu python benchmarks/harness.py --suite smoke --device cpu
+	JAX_PLATFORMS=cpu python3 -m benchmarks.harness --suite smoke --device cpu
 
 smoke-tpu:
-	python benchmarks/harness.py --suite smoke --device tpu
+	python3 -m benchmarks.harness --suite smoke --device tpu
 
 quick-tpu:
-	python benchmarks/harness.py --suite quick --device tpu
+	python3 -m benchmarks.harness --suite quick --device tpu
 
 # ── Development ────────────────────────────────────────────────────────────────
 
 lint:
-	python -m flake8 benchmarks/ observe/ tests/ --max-line-length 100 --extend-ignore=E501
+	python3 -m flake8 benchmarks/ observe/ tests/ --max-line-length 100 --extend-ignore=E501
 
 dashboard:
 	## Serve dashboard at http://localhost:8080
-	cd results/dashboard && python -m http.server 8080
+	cd results/dashboard && python3 -m http.server 8080
 
 lock:
 	## Snapshot current environment to requirements.stage1.lock.txt

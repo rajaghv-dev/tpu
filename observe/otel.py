@@ -7,12 +7,61 @@ Env: TPU_BENCH_OTEL, TPU_BENCH_OTEL_ENDPOINT, TPU_BENCH_OTEL_DIR.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+
+# ── Pure-Python no-op stubs (no opentelemetry import required) ───────────────
+
+class _NoOpSpan:
+    """Minimal span stand-in that satisfies set_attribute / set_status calls."""
+    def set_attribute(self, key: str, value: Any) -> None:  # noqa: D401
+        pass
+
+    def set_status(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def record_exception(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+
+class _NoOpTracer:
+    """Tracer stand-in returned when OTel is disabled or not installed."""
+
+    @contextlib.contextmanager
+    def start_as_current_span(self, name: str, **kwargs: Any):
+        yield _NoOpSpan()
+
+    def start_span(self, name: str, **kwargs: Any) -> _NoOpSpan:
+        return _NoOpSpan()
+
+
+class _NoOpHistogram:
+    """Histogram stand-in whose record() is a no-op."""
+
+    def record(self, amount: float, attributes: Any = None, **kwargs: Any) -> None:
+        pass
+
+
+class _NoOpMeter:
+    """Meter stand-in that returns _NoOpHistogram for any instrument creation."""
+
+    def create_histogram(self, name: str, **kwargs: Any) -> _NoOpHistogram:
+        return _NoOpHistogram()
+
+    def create_counter(self, name: str, **kwargs: Any) -> _NoOpHistogram:
+        return _NoOpHistogram()
+
+    def create_up_down_counter(self, name: str, **kwargs: Any) -> _NoOpHistogram:
+        return _NoOpHistogram()
+
+    def create_observable_gauge(self, name: str, **kwargs: Any) -> _NoOpHistogram:
+        return _NoOpHistogram()
 
 
 # ── Module state ─────────────────────────────────────────────────────────────
@@ -202,8 +251,7 @@ def init_otel(resource_attrs: Optional[Dict[str, Any]] = None) -> None:
 def get_tracer():
     """Return a Tracer (real or no-op when disabled)."""
     if not _state["enabled"]:
-        from opentelemetry import trace
-        return trace.get_tracer("tpu-benchmark-noop")
+        return _NoOpTracer()
     from opentelemetry import trace
     return trace.get_tracer("tpu-benchmark", "stage1")
 
@@ -211,8 +259,7 @@ def get_tracer():
 def get_meter():
     """Return a Meter (real or no-op when disabled)."""
     if not _state["enabled"]:
-        from opentelemetry import metrics
-        return metrics.get_meter("tpu-benchmark-noop")
+        return _NoOpMeter()
     from opentelemetry import metrics
     return metrics.get_meter("tpu-benchmark", "stage1")
 

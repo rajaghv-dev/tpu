@@ -95,6 +95,13 @@ working unchanged.
 | `jax_profiler`      | One `jax.profiler` trace covering the latency phase             | `jax`                       | `jax_profiler.json` + `jax_profiler/*.pb`  | Kernel-level perf in TensorBoard |
 | `cloud_monitoring`  | Per-TPU-chip MXU / HBM / network at 1 Hz                        | `google-cloud-monitoring`   | `cloud_monitoring.json`                    | Silicon utilisation timeline   |
 | `otel`              | OTel spans (run + per-phase) + metrics (latency / throughput / cost) | `opentelemetry-sdk` + OTLP exporter | `otel.json` (counts only)         | Live dashboards via collector  |
+| `determinism`       | Runtime determinism settings snapshot at run start              | (stdlib)                    | `determinism.json`                         | Verify reproducibility config  |
+| `device_info`       | One-shot hardware/software stack snapshot at run start          | `psutil`, `jax`             | `device_info.json`                         | System inventory per run       |
+| `power_thermal`     | Background power, temperature, and utilization sampler          | `psutil`, `nvidia-smi`, `tpu-info` | `power_thermal.json`                | Thermal/power budget tracking  |
+| `xla_compile`       | XLA compilation config snapshot, flags, timing, cache state     | (stdlib)                    | `xla_compile.json`                         | XLA compile-path debugging     |
+| `training_metrics`  | Per-step loss, learning rate, gradient norm, and custom scalars | (stdlib)                    | `training_metrics.json`                    | Training convergence tracking  |
+| `step_timing`       | Per-step wall-clock timing with jit-compile vs steady-state split | (stdlib)                   | `step_timing.json`                         | Step throughput and warmup cost |
+| `checkpoint`        | Checkpoint save/load events: path, size, duration, success      | (stdlib)                    | `checkpoint.json`                          | Checkpoint health auditing     |
 
 ### `timing` — `observe/timing_probe.py`
 
@@ -321,7 +328,10 @@ external services.
 - Probes: `observe/timing_probe.py`, `observe/memory_probe.py`,
   `observe/input_fingerprint.py`, `observe/hlo_dump_probe.py`,
   `observe/jax_profiler_probe.py`, `observe/cloud_monitoring_probe.py`,
-  `observe/otel_probe.py`
+  `observe/otel_probe.py`, `observe/determinism_probe.py`,
+  `observe/device_info_probe.py`, `observe/power_thermal_probe.py`,
+  `observe/xla_compile_probe.py`, `observe/training_metrics_probe.py`,
+  `observe/step_timing_probe.py`, `observe/checkpoint_probe.py`
 - Tests: `tests/test_app_probes.py`, `tests/test_compiler_probes.py`,
   `tests/test_cloud_monitoring_probe.py`, `tests/test_otel_probe.py`
 - Architecture decisions: `DECISIONS.md` ADR-014 (probe architecture),

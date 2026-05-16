@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # transformers<4.45 pin is intentional — Flax model compatibility
+      # Do not auto-upgrade transformers until harness migrates off Flax
+      - dependency-name: "transformers"
+        versions: [">=4.45"]
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "pip"
+    directory: "/cloud_tpu_lab"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "cloud_tpu_lab"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"

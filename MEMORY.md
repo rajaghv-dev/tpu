@@ -29,7 +29,7 @@ Evidence-backed. Full traceability. Beginner→expert curriculum included.
 Training examples 01–08 exist and are complete.
 **Stage 1 COMPLETE (2026-04-29):** benchmarks/harness.py + runner.py + observe/ + models/registry.yaml + results/dashboard/ + 97 tests.
 **Stage 1.5 COMPLETE (2026-05-06):** Probe ABC + 7 probes (OTel, CloudMonitoring, Timing, Memory, InputFingerprint, HloDump, JaxProfiler) + 5 Grafana dashboards + 22 staged GCP scripts + BenchmarkError. Test count: 124 → ~180. First TPU smoke (BERT-base BF16 on v5e-1): p50=0.64ms, CV=1.31%, 5,261 samp/s, $0.00056/run, $0/hr post-teardown verified.
-**Stage 1.6 COMPLETE (2026-05-10):** Tier 3 closeout. R19 (`results/stage1_interpretation.md`) + R22 (`context.md` §19 aha moments) + R24 (`.github/workflows/smoke_on_push.yml`) + R26 (LESSON_PLAN retrospective). R20/R21/R23 scripted (`scripts/53_run_bf16_validation.sh`, `54_thermal_check.sh`, `55_repro_validation.sh` + `docs/runbooks/tier3_tpu_session.md`). **Training observability layer:** `train/runner.py` + `train/harness.py` + `train/registry.yaml` (bert_finetune). Probe ABC extended with `before_step` / `after_step` / `record_metric`. New training probes: `TrainingMetricsProbe`, `StepTimingProbe`, `CheckpointProbe`. Test count: 180 → 224 (+32 new training tests, all pass). Tag: `stage1-complete`.
+**Stage 1.6 COMPLETE (2026-05-10):** Tier 3 closeout. R19 (`results/stage1_interpretation.md`) + R22 (`context.md` §19 aha moments) + R24 (`.github/workflows/smoke_on_push.yml`) + R26 (LESSON_PLAN retrospective). R20/R21/R23 scripted (`scripts/53_run_bf16_validation.sh`, `54_thermal_check.sh`, `55_repro_validation.sh` + `docs/runbooks/tier3_tpu_session.md`). **Training observability layer:** `train/runner.py` + `train/harness.py` + `train/registry.yaml` (bert_finetune). Probe ABC extended with `before_step` / `after_step` / `record_metric`. New training probes: `TrainingMetricsProbe`, `StepTimingProbe`, `CheckpointProbe`. Test count: 180 → 224 (+32 new training tests, all pass) → 272 total (as of 2026-05-16 refactor: 272 total; 265 pass after otel.py fix). Tag: `stage1-complete`.
 
 ---
 
@@ -155,7 +155,7 @@ observe/otel_probe.py      → ✅ DONE — OTLP spans + histograms + counters
 observe/cloud_monitoring_probe.py → ✅ DONE — TPU MXU% / GPU SM% / power / thermal
 observe/timing_probe.py    → ✅ DONE — per-phase wall-clock, cold vs warm
 observe/memory_probe.py    → ✅ DONE — peak HBM + allocator timeline
-observe/input_fingerprint_probe.py → ✅ DONE — input SHA + shape + dtype
+observe/input_fingerprint.py → ✅ DONE — input SHA + shape + dtype
 observe/hlo_dump_probe.py  → ✅ DONE — XLA HLO text + after-optimization dump
 observe/jax_profiler_probe.py → ✅ DONE — jax.profiler trace.pb
 observe/stats.py           → ✅ DONE — n=3 runs, Grubbs outlier test, CV check

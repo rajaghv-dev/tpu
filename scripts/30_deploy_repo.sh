@@ -41,11 +41,13 @@ fi
 section "tarball"
 TARBALL="$(mktemp -t tpu-repo-XXXXXX.tar.gz)"
 add_exit_handler "rm -f '$TARBALL'"
-log_info "Tarring $REPO_ROOT (excluding .git, __pycache__, *.pyc, .tpu-bench-state)..."
+log_info "Tarring $REPO_ROOT (excluding .git, __pycache__, *.pyc, .tpu-bench-state, .claude, .tpu)..."
 tar --exclude='.git' \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
     --exclude='.tpu-bench-state' \
+    --exclude='.claude' \
+    --exclude='.tpu' \
     --exclude='results/runs.jsonl' \
     --exclude='results/run_logs' \
     -C "$REPO_ROOT" -czf "$TARBALL" .

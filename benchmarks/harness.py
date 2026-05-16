@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from benchmarks.base_harness import DEVICE_COSTS, _load_yaml_registry
 from benchmarks.runner import BenchmarkError, ExperimentConfig, run_experiment
 from observe.input_fingerprint import InputFingerprintProbe
 from observe.memory_probe import MemoryProbe
@@ -42,18 +43,6 @@ SUITES: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Hourly preemptible rates (USD)
-DEVICE_COSTS: Dict[str, float] = {
-    "tpu_v5e1": 0.36,
-    "tpu_v6e1": 0.75,
-    "rtx3080": 0.0,
-    "rtx4090": 0.0,
-    "b200": 0.0,
-    "cpu": 0.0,
-    "tpu": 0.36,
-    "gpu": 0.0,
-}
-
 _REPO_ROOT = Path(__file__).parent.parent
 
 
@@ -69,15 +58,8 @@ def load_registry(path: Optional[str] = None) -> List[Dict[str, Any]]:
     Returns:
         List of model entry dicts.
     """
-    try:
-        import yaml
-    except ImportError:
-        raise ImportError("pyyaml is required. Install with: pip install pyyaml")
-
     registry_path = Path(path) if path else _REPO_ROOT / "models" / "registry.yaml"
-    with registry_path.open() as fh:
-        data = yaml.safe_load(fh)
-    return data["models"]
+    return _load_yaml_registry(registry_path, "models")
 
 
 def filter_registry(

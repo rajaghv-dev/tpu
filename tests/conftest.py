@@ -30,7 +30,17 @@ def _make_fake_jax() -> types.ModuleType:
     jax_mod.block_until_ready = lambda x: x
     jax_mod.jit = lambda fn: fn  # identity decorator — no actual JIT
     jax_mod.tree_util = types.ModuleType("jax.tree_util")
-    jax_mod.tree_util.tree_map = lambda fn, tree: fn(tree)
+
+    def _tree_map(fn, tree):
+        if isinstance(tree, (list, tuple)):
+            result = [_tree_map(fn, item) for item in tree]
+            return type(tree)(result)
+        elif isinstance(tree, dict):
+            return {k: _tree_map(fn, v) for k, v in tree.items()}
+        else:
+            return fn(tree)
+
+    jax_mod.tree_util.tree_map = _tree_map
 
     return jax_mod
 

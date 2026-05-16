@@ -104,15 +104,15 @@ results, and tears down. See `scripts/README.md` for the full stage list and
 pip install -r requirements.txt        # includes jax[tpu], transformers, pytest
 
 # Inference benchmarks (Stage 1):
-python -m benchmarks.harness --suite smoke --device tpu
-python -m benchmarks.harness --suite quick --device tpu
-python -m benchmarks.harness --suite quick --device tpu --dry-run    # plan only
-python -m benchmarks.harness --model bert_base --device gpu          # single model
+python3 -m benchmarks.harness --suite smoke --device tpu
+python3 -m benchmarks.harness --suite quick --device tpu
+python3 -m benchmarks.harness --suite quick --device tpu --dry-run    # plan only
+python3 -m benchmarks.harness --model bert_base --device gpu          # single model
 
 # Training observability (Stage 1.6):
-python -m train.harness --suite smoke --device tpu                   # 10 steps, ~1 min
-python -m train.harness --suite quick --device tpu                   # 200 steps, ~5 min
-python -m train.harness --task bert_finetune --device tpu --probes full --save-checkpoint
+python3 -m train.harness --suite smoke --device tpu                   # 10 steps, ~1 min
+python3 -m train.harness --suite quick --device tpu                   # 200 steps, ~5 min
+python3 -m train.harness --task bert_finetune --device tpu --probes full --save-checkpoint
 ```
 
 ### Cost monitoring
@@ -125,7 +125,7 @@ python -m train.harness --task bert_finetune --device tpu --probes full --save-c
 ```
 
 Results append to `results/runs.jsonl`. Dashboard at `results/dashboard/index.html`.
-Run `python scripts/render_results.py` to regenerate `results/RESULTS.md`
+Run `python3 scripts/render_results.py` to regenerate `results/RESULTS.md`
 (top-level summary + per-probe coverage) and per-run `REPORT.md` files.
 
 ### Observability (optional)
@@ -197,7 +197,7 @@ reproducibility (different hardware, controlled environment). See colab/README.m
 
 ```bash
 pip install pytest pyyaml numpy
-pytest tests/ -v              # 224 tests (inference + training + probe tests)
+pytest tests/ -v              # 272 tests (inference + training + probe tests)
 ```
 
 ### Google Colab Pro
@@ -207,7 +207,7 @@ pytest tests/ -v              # 224 tests (inference + training + probe tests)
 !git clone https://github.com/rajaghv-dev/tpu && cd tpu
 import os; os.environ['HF_TOKEN'] = 'your_token'   # for gated models (Gemma etc.)
 !pip install -r requirements.txt
-!python benchmarks/harness.py --suite smoke --device tpu
+!python3 -m benchmarks.harness --suite smoke --device tpu
 ```
 
 ---
@@ -224,7 +224,7 @@ import os; os.environ['HF_TOKEN'] = 'your_token'   # for gated models (Gemma etc
 | `observe/compile_controller.py` | XLA cache clearing, cold + warm compile timing |
 | `results/runs.jsonl` | Append-only result log (one JSON per experiment) |
 | `results/dashboard/index.html` | Static sortable/filterable table dashboard |
-| `tests/` | ~180 unit tests (pytest, no GPU required) |
+| `tests/` | 272 unit tests (269 passing, 6 skipped, 0 failures — no GPU required) |
 
 **Stage 1 models:** BERT-base · ViT-B/16 · GPT-2 · Whisper-base · CLIP ViT-B/32
 
@@ -252,6 +252,18 @@ in one probe are isolated and never break the run. Register them via
 | `JaxProfilerProbe` | Wraps the latency phase with `jax.profiler.start_trace` | `jax` |
 | `CloudMonitoringProbe` | 1 Hz polling of GCP TPU metrics (mxu_util, mem_util, mem_bw_util) | `google-cloud-monitoring` |
 | `OTelProbe` | OpenTelemetry spans for runs/phases + histograms (latency, throughput, cost) | `opentelemetry-sdk` |
+| `DeterminismProbe` | Runtime determinism settings snapshot | — |
+| `DeviceInfoProbe` | HW/SW stack info at run start | `psutil` |
+| `PowerThermalProbe` | Power, temperature, utilization | `psutil`, `nvidia-smi` |
+| `XlaCompileProbe` | XLA config, flags, compile timing | — |
+
+**Training-only probes** (registered by `train/harness.py`):
+
+| Probe | What it captures | Optional dep |
+|-------|------------------|--------------|
+| `TrainingMetricsProbe` | Per-step loss/lr/grad_norm/accuracy | — |
+| `StepTimingProbe` | Per-step wall-clock, samples/sec, p95/p99 | — |
+| `CheckpointProbe` | Checkpoint write events: duration, size_bytes | — |
 
 Grafana dashboards (importable JSON) live at `results/dashboard/grafana/` —
 roofline, MXU heatmap, latency violins, failures, cost. See that
@@ -456,7 +468,7 @@ Run any suite from a notebook cell:
 
 ```python
 # In a Colab cell (TPU runtime selected)
-!python benchmarks/harness.py --suite=quick --framework=jax --device=tpu
+!python3 -m benchmarks.harness --suite=quick --framework=jax --device=tpu
 ```
 
 Mount Google Drive to persist model weights between sessions:
@@ -510,7 +522,7 @@ tpu/                                  (github.com/rajaghv-dev/tpu)
 │       └── grafana/                  ✅ Importable dashboards (roofline · mxu_heatmap ·
 │                                        latency_violins · failures · cost · README)
 │
-├── tests/                            ✅ ~180 unit tests (no JAX/GPU required)
+├── tests/                            ✅ 272 unit tests (265 passing, no JAX/GPU required)
 │   ├── conftest.py
 │   ├── test_stats.py
 │   ├── test_lineage.py
@@ -629,7 +641,7 @@ is a legitimate revisit point — see the comment block at the top of
 | Model registry — 5 Stage 1 models | ✅ Complete (2026-04-29) |
 | Observe: stats, lineage, compile_controller | ✅ Complete (2026-04-29) |
 | Results dashboard — table view | ✅ Complete (2026-04-29) |
-| Unit tests (~180, no GPU required) | ✅ Complete (2026-04-29) |
+| Unit tests (272, 269 passing, 6 skipped, 0 failures) | ✅ Complete (2026-04-29) |
 | Probe-based observability layer | ✅ Complete (2026-05-06) |
 | Grafana dashboards (importable) | ✅ Complete (2026-05-06) |
 | Multi-path: Paths 2+3 (JAX+GPU, PyTorch+GPU) | Stage 2 |

@@ -14,7 +14,7 @@ It contains the complete state of the project, decisions made, and what comes ne
 | GitHub user | `rajaghv-dev` (email: rajaghv.dev@gmail.com) |
 | GitHub auth | `gh` CLI authenticated, HTTPS protocol |
 | Branch | `main` |
-| Last commit | `[update at commit time]` — Stage 1.5 observability layer + first successful TPU smoke run |
+| Last commit | `f725bf8` — stage 1.6+ multi-task training + deeper probes (2026-05-10) |
 | Shell | WSL2 (Linux on Windows), bash, /home/raja/tpu |
 
 ---
