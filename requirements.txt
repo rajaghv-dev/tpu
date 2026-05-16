@@ -2,7 +2,7 @@
 # libtpu wheels live in a non-PyPI index — required for jax[tpu] to install on TPU VMs.
 --find-links https://storage.googleapis.com/jax-releases/libtpu_releases.html
 jax[tpu]>=0.4.25
-flax>=0.8.3
+flax>=0.12.7
 optax>=0.2.2
 orbax-checkpoint>=0.6.0
 
