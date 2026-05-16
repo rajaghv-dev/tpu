@@ -12,7 +12,7 @@
 # ── Notebooks + plotting (optional) ─────────────────────────────────────────
 numpy>=1.24
 matplotlib>=3.7
-pandas>=2.0
+pandas>=3.0.3
 pyyaml>=6.0
 jupyter>=1.0
 
