@@ -27,7 +27,7 @@ datasets>=2.19.0
 
 # ── Benchmark harness ─────────────────────────────────────────────────────────
 pyyaml>=6.0          # registry loading
-rich>=13.7           # progress display
+rich>=15.0.0           # progress display
 tqdm>=4.66
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
