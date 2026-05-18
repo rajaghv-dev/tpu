@@ -1,3 +1,5 @@
+> **Note:** this doc predates the real-TPU pivot. References to `src/xla_sim/`, `src/pjrt_sim/`, `src/sharding/`, `src/memory/`, `src/input_pipeline/`, and `examples/run_cpu_simulation_demo.py` are historical — those modules were removed. The TPU architecture / XLA / observability concepts below are still accurate. Current run flow lives in [README.md](../README.md) and [16_runbook_real_tpu.md](16_runbook_real_tpu.md).
+
 # 01 - Cloud TPU Versions: v4, v5e, v5p, v6e
 
 > **Learning goal:** for each of the four Cloud TPU generations covered in this lab (v4, v5e, v5p, v6e/Trillium), be able to state — without inventing numbers — the intended workload, HBM and ICI characteristics, software family, cost positioning, and the situations in which you should and should not pick it.

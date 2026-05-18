@@ -1,3 +1,5 @@
+> **Note:** this doc predates the real-TPU pivot. References to `src/xla_sim/`, `src/pjrt_sim/`, `src/sharding/`, `src/memory/`, `src/input_pipeline/`, and `examples/run_cpu_simulation_demo.py` are historical — those modules were removed. The TPU architecture / XLA / observability concepts below are still accurate. Current run flow lives in [README.md](../README.md) and [16_runbook_real_tpu.md](16_runbook_real_tpu.md).
+
 # 05 - PyTorch / XLA on Cloud TPU
 
 > **Learning goal:** understand how PyTorch reaches a Cloud TPU through `torch_xla`, the lazy-tensor execution model, the `xm.xla_device()` / `xm.mark_step()` pattern, how `MpDeviceLoader` keeps the pipeline fed, and how SPMD sharding is expressed via `torch_xla.distributed.spmd`.

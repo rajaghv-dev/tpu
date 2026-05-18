@@ -37,8 +37,14 @@ python3 -m pip install \\
     "flax==${FLAX_VERSION}" \\
     "optax==${OPTAX_VERSION}" \\
     "transformers==${TRANSFORMERS_VERSION}"
+# XProf viewer + TensorBoard for jax.profiler.trace output. Needed to
+# render the xprof/ directory the real-TPU runner produces.
+python3 -m pip install \\
+    "tensorboard" \\
+    "tensorboard-plugin-profile"
 echo "[remote] verifying ..."
 python3 -c "import jax; print('jax', jax.__version__); print('devices:', jax.devices())"
+python3 -c "import tensorboard_plugin_profile; print('tb-profile OK')"
 EOF
 )
 

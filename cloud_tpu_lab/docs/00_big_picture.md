@@ -1,3 +1,5 @@
+> **Note:** this doc predates the real-TPU pivot. References to `src/xla_sim/`, `src/pjrt_sim/`, `src/sharding/`, `src/memory/`, `src/input_pipeline/`, and `examples/run_cpu_simulation_demo.py` are historical — those modules were removed. The TPU architecture / XLA / observability concepts below are still accurate. Current run flow lives in [README.md](../README.md) and [16_runbook_real_tpu.md](16_runbook_real_tpu.md).
+
 # 00 - The Big Picture: Cloud TPU
 
 > **Learning goal:** build an honest mental model of what a Google Cloud TPU is, where it sits in the wider ML accelerator landscape, when it is the right tool, and — equally important — when it is the wrong tool. By the end of this doc you should be able to look at a workload description and predict, without running anything, whether Cloud TPU is a sensible target.

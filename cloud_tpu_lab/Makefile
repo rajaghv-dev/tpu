@@ -4,24 +4,21 @@ PYTHON ?= python3
 
 help:
 	@echo "Targets:"
-	@echo "  make demo      Run the CPU simulation demo (no TPU needed)."
 	@echo "  make smoke     Run only the smoke tests (fast)."
 	@echo "  make test      Run the full pytest suite."
 	@echo "  make versions  Print the TPU version comparison table."
 	@echo "  make clean     Remove artifacts/ and __pycache__/."
-
-demo:
-	$(PYTHON) -m cloud_tpu_lab.examples.run_cpu_simulation_demo
+	@echo ""
+	@echo "Real-TPU runs are orchestrated by gcp/run_real_demo.sh (PAID)."
 
 smoke:
-	$(PYTHON) -m pytest cloud_tpu_lab/tests/test_imports.py \
-	                    cloud_tpu_lab/tests/test_cpu_simulation_smoke.py -q
+	$(PYTHON) -m pytest cloud_tpu_lab/tests/test_imports.py -q
 
 test:
 	$(PYTHON) -m pytest cloud_tpu_lab/tests/ -q
 
 versions:
-	$(PYTHON) -m cloud_tpu_lab.examples.run_cpu_simulation_demo --show-versions
+	$(PYTHON) -m cloud_tpu_lab.src.tpu_versions.version_compare
 
 clean:
 	rm -rf cloud_tpu_lab/artifacts/logs/* \

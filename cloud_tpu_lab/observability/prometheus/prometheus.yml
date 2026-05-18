@@ -28,3 +28,17 @@ scrape_configs:
         labels:
           app: "cloud_tpu_lab"
           source: "exporter"
+
+  # GCP Cloud Monitoring (Stackdriver) — pulls real TPU infrastructure metrics
+  # via the stackdriver-exporter sidecar. Cloud Monitoring rate-limits
+  # aggressively (~6000 read calls/min/project), so we deliberately keep
+  # scrape_interval at 60s and grant a 30s timeout (the exporter has to
+  # round-trip to googleapis.com per scrape).
+  - job_name: 'gcp_cloud_monitoring_tpu'
+    static_configs:
+      - targets: ['stackdriver-exporter:9255']
+        labels:
+          app: "cloud_tpu_lab"
+          source: "gcp_monitoring"
+    scrape_interval: 60s
+    scrape_timeout: 30s

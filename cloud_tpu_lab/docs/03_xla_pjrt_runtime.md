@@ -1,3 +1,5 @@
+> **Note:** this doc predates the real-TPU pivot. References to `src/xla_sim/`, `src/pjrt_sim/`, `src/sharding/`, `src/memory/`, `src/input_pipeline/`, and `examples/run_cpu_simulation_demo.py` are historical — those modules were removed. The TPU architecture / XLA / observability concepts below are still accurate. Current run flow lives in [README.md](../README.md) and [16_runbook_real_tpu.md](16_runbook_real_tpu.md).
+
 # 03 - XLA + PJRT: From Python Op to Compiled Executable
 
 > **Learning goal:** trace, step by step, what happens between writing `y = jnp.dot(a, b)` and the bytes flowing through HBM on a Cloud TPU. Learn the compile pipeline (tracing → lowering → fusion → layout → scheduling → execution), how the XLA cache is keyed, and the most common "silent recompile" footgun.

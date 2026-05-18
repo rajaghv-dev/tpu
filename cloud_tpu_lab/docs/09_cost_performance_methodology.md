@@ -1,3 +1,5 @@
+> **Note:** this doc predates the real-TPU pivot. References to `src/xla_sim/`, `src/pjrt_sim/`, `src/sharding/`, `src/memory/`, `src/input_pipeline/`, and `examples/run_cpu_simulation_demo.py` are historical — those modules were removed. The TPU architecture / XLA / observability concepts below are still accurate. Current run flow lives in [README.md](../README.md) and [16_runbook_real_tpu.md](16_runbook_real_tpu.md).
+
 # 09 - Cost and Performance Methodology
 
 > **Learning goal:** know how to honestly compute and compare the cost of a Cloud TPU workload — per step, per sample, per token, per epoch. Read `step_time × chip_count × hourly_rate` correctly. Avoid the common pricing traps: idle billing, preemptible/Spot, region differences, committed-use discounts. All grounded in this lab's `src/common/cost.py`.

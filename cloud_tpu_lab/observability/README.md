@@ -99,6 +99,38 @@ promotes a small set of low-cardinality fields to labels: `app`, `layer`,
 `level`. `trace_id` is kept in the **log content**, not as a label — see the
 comment block in `loki/promtail-config.yml`.
 
+## GCP Cloud Monitoring (real TPU metrics)
+
+The Python exporter above gives you **workload-level** metrics — what JAX sees
+per step, sampled at whatever cadence your training loop emits events. That's
+necessary but not sufficient: it can't tell you what the TPU silicon is
+actually doing. For that we add a second source of truth.
+
+| tier | source                          | how                              | port | cadence    | use for                                              |
+|------|---------------------------------|----------------------------------|------|------------|------------------------------------------------------|
+| 1    | JAX on the VM                   | JSONL -> Python exporter         | 9100 | per-step   | step time, compile time, HBM logical alloc, samples/s |
+| 2    | GCP Cloud Monitoring            | `stackdriver-exporter` sidecar   | 9255 | per-minute | duty cycle, HBM physical usage, network IO, host CPU |
+
+Tier 2 ships as the `stackdriver-exporter` service in `docker-compose.yml`. It
+pulls from project `nellaiappar-001` and exposes Prometheus metrics named like
+`stackdriver_tpu_worker_tpu_googleapis_com_tpu_duty_cycle`.
+
+To enable tier 2 you need a Google service account with `roles/monitoring.viewer`
+and its JSON key at `~/.config/gcloud/cloud_tpu_lab_sa.json`. The exact gcloud
+commands are in [`stackdriver/README.md`](stackdriver/README.md).
+
+The dashboard `cloud_tpu_gcp_metrics.json` (UID `cloud-tpu-gcp-metrics`,
+title "Cloud TPU — GCP Cloud Monitoring") visualises tier-2 metrics:
+
+- TPU Duty Cycle (%)
+- HBM Used (GB) and HBM Utilization (%)
+- TensorCore Idle (s)
+- Network RX/TX (MB/s)
+- Host CPU on TPU VM (%)
+
+Both tiers feed the same Prometheus, so you can correlate workload events
+(tier 1) with infrastructure reality (tier 2) on a single Grafana time axis.
+
 ## Cleanup
 
 ```bash

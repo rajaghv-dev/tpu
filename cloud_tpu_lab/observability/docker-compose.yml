@@ -110,3 +110,28 @@ services:
       - ../artifacts/logs:/var/log/cloud_tpu_lab:ro
     networks:
       - cloud_tpu_lab_obs
+
+  # Pulls real TPU infrastructure metrics from GCP Cloud Monitoring (formerly
+  # Stackdriver) and exposes them on :9255 in Prometheus format. The user
+  # creates a service account JSON at the host path below — see
+  # `stackdriver/README.md` for the exact gcloud commands. This service will
+  # crash-loop until that file exists, which is intentional: it surfaces the
+  # missing-credentials state clearly rather than silently scraping nothing.
+  stackdriver-exporter:
+    image: prometheuscommunity/stackdriver-exporter:v0.16.0
+    container_name: stackdriver-exporter
+    restart: unless-stopped
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-sa.json
+    volumes:
+      - ${HOME}/.config/gcloud/cloud_tpu_lab_sa.json:/secrets/gcp-sa.json:ro
+    command:
+      - "--google.project-id=nellaiappar-001"
+      - "--monitoring.metrics-type-prefixes=tpu.googleapis.com/tpu/cpu/utilization,tpu.googleapis.com/tpu/memory/usage,tpu.googleapis.com/tpu/memory/total,tpu.googleapis.com/tpu/network/received_bytes_count,tpu.googleapis.com/tpu/network/sent_bytes_count,tpu.googleapis.com/tpu/tensorcore/idle_duration,tpu.googleapis.com/tpu/duty_cycle"
+      - "--monitoring.metrics-interval=1m"
+      - "--monitoring.metrics-offset=1m"
+      - "--web.listen-address=:9255"
+    ports:
+      - "9255:9255"
+    networks:
+      - cloud_tpu_lab_obs

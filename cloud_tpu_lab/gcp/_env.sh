@@ -13,7 +13,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Required: GCP project id. No safe default — fail fast if unset.
-PROJECT_ID="${PROJECT_ID:-your-project-id-here}"
+PROJECT_ID="${PROJECT_ID:-nellaiappar-001}"
 
 # Zone hosting the TPU VM. Pick one that has capacity for ACCELERATOR_TYPE.
 # See https://cloud.google.com/tpu/docs/regions-zones.
@@ -38,8 +38,8 @@ NETWORK="${NETWORK:-default}"
 SUBNETWORK="${SUBNETWORK:-default}"
 
 # ── Fail fast on missing project id ──────────────────────────────────────────
-if [[ -z "${PROJECT_ID:-}" || "$PROJECT_ID" == "your-project-id-here" ]]; then
-    echo "[_env.sh] ERROR: PROJECT_ID is not set (got '$PROJECT_ID')." >&2
+if [[ -z "${PROJECT_ID:-}" ]]; then
+    echo "[_env.sh] ERROR: PROJECT_ID is empty." >&2
     echo "[_env.sh] export PROJECT_ID=<your-gcp-project> and re-run." >&2
     return 1 2>/dev/null || exit 1
 fi

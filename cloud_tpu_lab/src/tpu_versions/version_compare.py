@@ -1,8 +1,8 @@
 """
 Pretty-print and side-by-side compare known Cloud TPU versions.
 
-Used by `examples/run_cpu_simulation_demo.py --show-versions` and the
-notebook `01_cloud_tpu_big_picture.ipynb`. No external deps.
+Used to print a side-by-side comparison of TPU specs for the cost
+estimator and roofline / sanity references. No external deps.
 """
 from __future__ import annotations
 

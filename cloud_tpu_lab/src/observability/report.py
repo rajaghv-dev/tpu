@@ -3,10 +3,10 @@ Markdown report renderer — one self-contained summary per run.
 
 Combines:
   * workload config
-  * compile cache stats
+  * compile stats (compile_time_s, recompile_count)
   * breakdown by category
   * step-time summary
-  * HBM utilization
+  * HBM utilization (from `jax.devices()[0].memory_stats()`)
   * cost report
   * bottleneck findings
 
@@ -17,13 +17,11 @@ from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, List, Mapping
 
 from ..common.cost import CostReport
-from ..memory.hbm_sim import HbmSimulator
 from ..profiling.bottleneck_report import Finding, render_markdown as render_findings
 from ..profiling.trace_analyzer import Breakdown, StepSummary
-from ..xla_sim.compile_cache import CompileCache
 
 
 def render_run_report(
@@ -31,11 +29,20 @@ def render_run_report(
     config: Any,
     breakdown: Breakdown,
     summary: StepSummary,
-    hbm: HbmSimulator,
-    compile_cache: CompileCache,
+    hbm: Mapping[str, Any],
+    compile_stats: Mapping[str, Any],
     cost: CostReport,
     findings: List[Finding],
 ) -> str:
+    """
+    Render the Markdown run report.
+
+    `hbm` is a plain dict with keys: used_bytes, capacity_bytes, utilization,
+       peak_bytes, oom_events. Build it with
+       `profiling.bottleneck_report.hbm_stats_from_jax(...)` on TPU.
+
+    `compile_stats` is a plain dict with keys: compile_time_s, recompile_count.
+    """
     cfg_dict = asdict(config) if is_dataclass(config) else dict(vars(config))
     lines: List[str] = []
     lines.append(f"# Cloud TPU Lab — Run Report")
@@ -49,12 +56,10 @@ def render_run_report(
         lines.append(f"- `{k}`: {v}")
     lines.append("")
 
-    # ── Compile cache ───────────────────────────────────────────────────────
-    lines.append("## XLA compile cache")
-    cs = compile_cache.stats()
-    lines.append(f"- hits: {cs['hits']}")
-    lines.append(f"- misses: {cs['misses']}")
-    lines.append(f"- entries: {cs['entries']}")
+    # ── Compile ─────────────────────────────────────────────────────────────
+    lines.append("## XLA compile")
+    lines.append(f"- compile_time_s: {compile_stats.get('compile_time_s', 0.0):.4f}")
+    lines.append(f"- recompile_count: {compile_stats.get('recompile_count', 0)}")
     lines.append("")
 
     # ── Breakdown ───────────────────────────────────────────────────────────
@@ -78,12 +83,14 @@ def render_run_report(
 
     # ── HBM ─────────────────────────────────────────────────────────────────
     lines.append("## HBM")
-    lines.append(f"- capacity: {hbm.capacity_bytes/1e9:.1f} GB")
-    lines.append(f"- used:     {hbm.used_bytes()/1e9:.3f} GB "
-                 f"({hbm.utilization()*100:.1f}%)")
-    lines.append(f"- OOM events: {hbm.oom_events}")
-    for cat, b in hbm.by_category().items():
-        lines.append(f"  - {cat:15s} {b/1e9:.3f} GB")
+    cap = int(hbm.get("capacity_bytes", 0) or 0)
+    used = int(hbm.get("used_bytes", 0) or 0)
+    peak = int(hbm.get("peak_bytes", used) or used)
+    util = float(hbm.get("utilization", 0.0) or 0.0)
+    lines.append(f"- capacity: {cap/1e9:.3f} GB")
+    lines.append(f"- used:     {used/1e9:.3f} GB ({util*100:.1f}%)")
+    lines.append(f"- peak:     {peak/1e9:.3f} GB")
+    lines.append(f"- OOM events: {hbm.get('oom_events', 0)}")
     lines.append("")
 
     # ── Cost ────────────────────────────────────────────────────────────────

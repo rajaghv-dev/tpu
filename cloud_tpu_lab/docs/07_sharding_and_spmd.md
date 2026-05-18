@@ -1,3 +1,5 @@
+> **Note:** this doc predates the real-TPU pivot. References to `src/xla_sim/`, `src/pjrt_sim/`, `src/sharding/`, `src/memory/`, `src/input_pipeline/`, and `examples/run_cpu_simulation_demo.py` are historical — those modules were removed. The TPU architecture / XLA / observability concepts below are still accurate. Current run flow lives in [README.md](../README.md) and [16_runbook_real_tpu.md](16_runbook_real_tpu.md).
+
 # 07 - Sharding and SPMD on Cloud TPU
 
 > **Learning goal:** build a working model of how a tensor program scales across many TPU chips. Understand data parallel, tensor parallel, pipeline parallel, the SPMD substrate, and the three collectives (all-reduce, all-gather, reduce-scatter) that underlie all of it. Read and write `PartitionSpec`s with confidence, and reason about scaling efficiency before running anything.

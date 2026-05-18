@@ -1,0 +1,137 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "description": "Headline TPU number: fraction of time the TensorCore is processing. Sourced from GCP Cloud Monitoring metric tpu.googleapis.com/tpu/duty_cycle.",
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"showLegend": true}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "stackdriver_tpu_worker_tpu_googleapis_com_tpu_duty_cycle{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"} * 100",
+          "legendFormat": "duty_cycle {{node_id}}/{{tpu_worker_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "TPU Duty Cycle (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "description": "HBM bytes used per chip (tpu.googleapis.com/tpu/memory/usage), converted to GB.",
+      "fieldConfig": {"defaults": {"unit": "decgbytes"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "stackdriver_tpu_worker_tpu_googleapis_com_tpu_memory_usage{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"} / 1e9",
+          "legendFormat": "HBM used {{node_id}}/{{tpu_worker_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HBM Used (GB)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "description": "HBM utilization = memory_usage / memory_total. Anything > 90% sustained is a red flag.",
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "(stackdriver_tpu_worker_tpu_googleapis_com_tpu_memory_usage{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"} / stackdriver_tpu_worker_tpu_googleapis_com_tpu_memory_total{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"}) * 100",
+          "legendFormat": "HBM util {{node_id}}/{{tpu_worker_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HBM Utilization (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "description": "TensorCore idle duration in seconds (tpu.googleapis.com/tpu/tensorcore/idle_duration). Lower is better — high idle implies pipeline bubbles or input-bound steps.",
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "stackdriver_tpu_worker_tpu_googleapis_com_tpu_tensorcore_idle_duration{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"}",
+          "legendFormat": "tc idle {{node_id}}/{{tpu_worker_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "TensorCore Idle (s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "description": "Per-second network throughput in MB/s. RX = received_bytes_count, TX = sent_bytes_count, rated over 1m.",
+      "fieldConfig": {"defaults": {"unit": "MBs"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "rate(stackdriver_tpu_worker_tpu_googleapis_com_tpu_network_received_bytes_count{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"}[1m]) / 1e6",
+          "legendFormat": "RX {{node_id}}/{{tpu_worker_id}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "rate(stackdriver_tpu_worker_tpu_googleapis_com_tpu_network_sent_bytes_count{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"}[1m]) / 1e6",
+          "legendFormat": "TX {{node_id}}/{{tpu_worker_id}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Network RX/TX (MB/s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+      "description": "Host CPU utilization on the TPU VM (tpu.googleapis.com/tpu/cpu/utilization). High values point at host-side bottlenecks: input pipeline, transfer prep, callbacks.",
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"},
+          "expr": "stackdriver_tpu_worker_tpu_googleapis_com_tpu_cpu_utilization{project_id=~\"$project_id\",node_id=~\"$tpu_name\",zone=~\"$zone\"} * 100",
+          "legendFormat": "host CPU {{node_id}}/{{tpu_worker_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Host CPU on TPU VM (%)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "tags": ["cloud_tpu_lab", "gcp_monitoring"],
+  "templating": {
+    "list": [
+      {"name": "project_id", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(stackdriver_tpu_worker_tpu_googleapis_com_tpu_duty_cycle, project_id)", "refId": "pid"}, "includeAll": false, "multi": false, "current": {"text": "nellaiappar-001", "value": "nellaiappar-001"}, "refresh": 2, "sort": 1},
+      {"name": "tpu_name", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(stackdriver_tpu_worker_tpu_googleapis_com_tpu_duty_cycle, node_id)", "refId": "tn"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1},
+      {"name": "zone", "type": "query", "datasource": {"type": "prometheus", "uid": "cloud_tpu_lab_prometheus"}, "query": {"query": "label_values(stackdriver_tpu_worker_tpu_googleapis_com_tpu_duty_cycle, zone)", "refId": "zn"}, "includeAll": true, "multi": true, "current": {"text": "All", "value": "$__all"}, "refresh": 2, "sort": 1}
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Cloud TPU — GCP Cloud Monitoring",
+  "uid": "cloud-tpu-gcp-metrics",
+  "version": 1,
+  "weekStart": ""
+}
