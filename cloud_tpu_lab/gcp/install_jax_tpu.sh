@@ -17,33 +17,35 @@ source "$SCRIPT_DIR/_env.sh"
 
 log() { printf '[install_jax_tpu] %s\n' "$*"; }
 
-# update from https://docs.jax.dev/en/latest/installation.html
-JAX_TPU_WHEELS_URL="${JAX_TPU_WHEELS_URL:-https://storage.googleapis.com/jax-releases/libtpu_releases.html}"
-JAX_VERSION="${JAX_VERSION:-0.4.34}"
-FLAX_VERSION="${FLAX_VERSION:-0.9.0}"
-OPTAX_VERSION="${OPTAX_VERSION:-0.2.3}"
-TRANSFORMERS_VERSION="${TRANSFORMERS_VERSION:-4.44.2}"
+# By default install LATEST stable JAX[tpu] + matching bundled libtpu (since
+# JAX 0.4.35 libtpu is on PyPI, so the legacy `-f libtpu_releases.html` flag
+# is no longer required). Override below if you need a specific version.
+JAX_VERSION="${JAX_VERSION:-}"   # empty = latest
 
-log "installing JAX[tpu]==$JAX_VERSION + flax + optax + transformers on $TPU_NAME ..."
+log "installing JAX[tpu]${JAX_VERSION:+==$JAX_VERSION} + flax + optax + transformers on $TPU_NAME ..."
+
+# The remote pip install must be aggressive — TPU VMs often ship with a
+# pre-installed JAX in the system / user site that pip won't otherwise
+# downgrade or replace. We uninstall jax/jaxlib/libtpu explicitly, then
+# pip install --force-reinstall to get a clean matched set.
+JAX_SPEC="jax[tpu]"
+[[ -n "$JAX_VERSION" ]] && JAX_SPEC="jax[tpu]==${JAX_VERSION}"
 
 REMOTE_CMD=$(cat <<EOF
 set -euo pipefail
 echo "[remote] python: \$(python3 --version)"
 python3 -m pip install --upgrade pip
-python3 -m pip install \\
-    "jax[tpu]==${JAX_VERSION}" \\
-    -f "${JAX_TPU_WHEELS_URL}"
-python3 -m pip install \\
-    "flax==${FLAX_VERSION}" \\
-    "optax==${OPTAX_VERSION}" \\
-    "transformers==${TRANSFORMERS_VERSION}"
-# XProf viewer + TensorBoard for jax.profiler.trace output. Needed to
-# render the xprof/ directory the real-TPU runner produces.
-python3 -m pip install \\
-    "tensorboard" \\
-    "tensorboard-plugin-profile"
+echo "[remote] uninstalling any pre-existing jax / libtpu ..."
+python3 -m pip uninstall -y jax jaxlib libtpu libtpu-nightly 2>/dev/null || true
+echo "[remote] installing ${JAX_SPEC} (latest matched libtpu via PyPI) ..."
+python3 -m pip install --upgrade --force-reinstall "${JAX_SPEC}"
+python3 -m pip install --upgrade flax optax transformers
+python3 -m pip install --upgrade tensorboard tensorboard-plugin-profile
 echo "[remote] verifying ..."
-python3 -c "import jax; print('jax', jax.__version__); print('devices:', jax.devices())"
+python3 -c "import jax; print('jax', jax.__version__)"
+python3 -c "import jaxlib; print('jaxlib', jaxlib.__version__)"
+python3 -c "import libtpu; print('libtpu', libtpu.__version__)" 2>/dev/null || echo "(libtpu version probe skipped)"
+python3 -c "import jax; print('devices:', jax.devices()); print('backend:', jax.default_backend())"
 python3 -c "import tensorboard_plugin_profile; print('tb-profile OK')"
 EOF
 )
