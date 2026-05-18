@@ -17,7 +17,14 @@ PROJECT_ID="${PROJECT_ID:-nellaiappar-001}"
 
 # Zone hosting the TPU VM. Pick one that has capacity for ACCELERATOR_TYPE.
 # See https://cloud.google.com/tpu/docs/regions-zones.
-ZONE="${ZONE:-us-central2-b}"
+#
+# Quick TPU-generation → zone reference:
+#   v4  (TPU v4 pod)          us-central2-b   (allowlist required)
+#   v5e (v5litepod-*)         us-west1-c, us-west4-a, us-east1-c, us-east5-a,
+#                             europe-west4-b
+#   v5p (v5p-*)               us-east5-a, europe-west4-b
+#   v6e (Trillium)            us-east5-a/b, europe-west4-a, asia-northeast1-b
+ZONE="${ZONE:-us-west1-c}"
 
 # Logical name of the TPU VM (lowercase, hyphens). Used by every other script.
 TPU_NAME="${TPU_NAME:-ctl-tpu-vm}"

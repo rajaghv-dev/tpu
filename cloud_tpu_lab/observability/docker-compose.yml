@@ -9,8 +9,6 @@
 # Linux that hostname needs an explicit `extra_hosts` entry — provided
 # below for the prometheus service.
 
-version: "3.9"
-
 networks:
   cloud_tpu_lab_obs:
     driver: bridge
@@ -119,6 +117,10 @@ services:
   # missing-credentials state clearly rather than silently scraping nothing.
   stackdriver-exporter:
     image: prometheuscommunity/stackdriver-exporter:v0.16.0
+    # Image is published linux/amd64 only; on Apple Silicon Docker emulates
+    # via Rosetta. Slightly slower at startup but fine — this exporter is
+    # I/O-bound on the GCP Monitoring API, not CPU-bound.
+    platform: linux/amd64
     container_name: stackdriver-exporter
     restart: unless-stopped
     environment:
