@@ -114,7 +114,7 @@ gcloud compute firewall-rules create allow-ssh-from-iap \
     --project=$PROJECT
 ```
 
-### 2.8 Corporate networks block outbound port 22
+### 2.8 Corporate networks block outbound port 22 → use Cloud Shell, not IAP
 The first SSH from `bhar-10476-AIT2` timed out with:
 
 ```
@@ -122,11 +122,30 @@ ssh: connect to host 34.83.245.217 port 22: Operation timed out
 ```
 
 `default-allow-ssh` was in place on the GCP side (0.0.0.0/0 → tcp:22),
-so the block was outbound from the client network. The IAP fix routes
-SSH over 443 (which corporate networks invariably allow).
+so the block was outbound from the client network.
 
-**Always-on pattern**: every `gcloud compute tpus tpu-vm ssh|scp` call
-should include `--tunnel-through-iap`. Patched across all 10 scripts.
+**IAP tunneling does NOT work for TPU VMs** — only for GCE instances:
+
+```
+$ gcloud compute tpus tpu-vm ssh ... --tunnel-through-iap
+ERROR: unrecognized arguments: --tunnel-through-iap
+
+$ gcloud compute start-iap-tunnel ctl-tpu-vm 22 --zone=us-west1-c ...
+ERROR: Could not fetch resource: The resource
+'projects/.../zones/.../instances/ctl-tpu-vm' was not found
+```
+
+TPU VMs live at `locations/.../nodes/...`, not `zones/.../instances/...`,
+and the IAP tunnel command targets GCE specifically. There is no
+documented IAP path for TPU VMs as of 2026-05.
+
+**The actual fix**: use **Cloud Shell** (https://console.cloud.google.com →
+Activate Cloud Shell). It runs inside Google's network so SSH works
+natively, has gcloud preauthed, and is free.
+
+Don't bother adding `--tunnel-through-iap` to TPU VM SSH/SCP — pip
+will accept the flag silently in some sub-tools but `tpu-vm ssh` rejects
+it.
 
 ### 2.9 Auto-switched zone in `create_tpu_vm.sh` doesn't propagate
 When `create_tpu_vm.sh` auto-switches zones, the discovered value lives
@@ -137,6 +156,27 @@ only in that script's memory. Subsequent scripts (`install_jax_tpu.sh`,
 or re-discover with `gcloud compute tpus tpu-vm list --zone=$Z` per zone.
 **Better fix** (not yet done): each subsequent script should query
 `gcloud compute tpus tpu-vm list` to find where the VM actually is.
+
+### 2.10 Cloud Shell + local repo can drift, breaking `git pull`
+After committing fixes locally and asking Cloud Shell to `git pull`, the
+pull was rejected:
+
+```
+error: Your local changes to the following files would be overwritten by merge:
+        cloud_tpu_lab/gcp/install_jax_tpu.sh
+Please commit your changes or stash them before you merge.
+```
+
+Cloud Shell had earlier installed the file via an `scp` or web-edit that
+changed its mode-bits or content. Fix is one-line and safe:
+
+```bash
+git checkout cloud_tpu_lab/gcp/install_jax_tpu.sh    # discard local
+git pull
+```
+
+(General rule: if you're not editing in Cloud Shell intentionally,
+`git checkout <file>` to discard is the right move.)
 
 ---
 
@@ -262,6 +302,127 @@ For pytree returns, block on any leaf with `block_until_ready` attribute.
 Time step 0 separately. Treat it as `compile_time_s`, take the median
 of steps 1..N for steady-state step time and cost math.
 
+### 5.5 JAX / libtpu install on `tpu-ubuntu2204-base` is a minefield
+The base image ships an old `libtpu.so` (e.g. `libtpu_nightly_20241002`)
+that pip cannot replace without root. Combined with whatever JAX the
+user-site already had, several failure modes hit in this order:
+
+| Symptom                                                       | Cause                                                                                       | Fix                                                                                                  |
+|---------------------------------------------------------------|---------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `error: unknown attribute code: 22 ... StableHLO_v1.9.6 ... v1.7.5` | Image libtpu (Oct 2024 → StableHLO 1.7.5) vs newer pip-installed JAX 0.6.2 (emits 1.9.6) | Either downgrade JAX to match OR force-reinstall with a wheel that brings a fresh libtpu             |
+| `ModuleNotFoundError: No module named 'jax'`                  | Earlier install ran `pip uninstall jax jaxlib libtpu` but the subsequent install failed     | Re-run install; ensure the install command's exit status is checked                                  |
+| `jaxlib or libtpu is not installed. Falling back to cpu`      | Plain `jax==0.4.34 jaxlib==0.4.34` (no `[tpu]` extra) doesn't pull the libtpu Python wrapper | Use `jax[tpu]` with `-f https://storage.googleapis.com/jax-releases/libtpu_releases.html`            |
+| `backend: cpu` despite the install "succeeding"               | Silent CPU fallback after a broken install                                                  | Add `python -c "import jax; assert jax.default_backend()=='tpu'"` as the FINAL step of any installer |
+
+**Canonical install that worked** (current `install_jax_tpu.sh`):
+
+```bash
+pip uninstall -y jax jaxlib libtpu libtpu-nightly
+pip install --upgrade --force-reinstall "jax[tpu]" \
+    -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
+python -c "import jax; assert jax.default_backend()=='tpu'" || exit 1
+```
+
+The legacy `libtpu_releases.html` URL is **still authoritative** even in
+2026; do not assume pip-only resolution covers libtpu wheels.
+
+### 5.6 Verify `backend == 'tpu'` at install time, not at run time
+Without an assertion, a botched install lets the user spin up a paid VM,
+SSH in, and run a "TPU" workload on CPU — wasting TPU-hours producing
+data that doesn't reflect TPU behaviour at all. The single line costs
+nothing and saves a frustrating debug loop.
+
+---
+
+## 5A. Observability pipeline gotchas
+
+### 5A.1 Runner → exporter event-schema mismatch silently produces empty Grafana
+The Python metrics exporter recognises very specific event names + field
+shapes:
+
+| Event             | Required fields (flat at top of JSON line)                 |
+|-------------------|------------------------------------------------------------|
+| `xla.compile`     | `compile_time_s`, `cache_hit`                              |
+| `runtime.step`    | `step_time_s`, `device_execution_time_s`, `samples_per_second` |
+| `hbm.snapshot`    | `hbm_used_bytes`, `hbm_capacity_bytes`, `hbm_utilization_ratio` |
+
+The initial runner emitted `event="train.step"` and put HBM under a
+nested `metrics: { used_bytes: ... }`. Result: exporter reads every line,
+matches no handler, exposes only `# HELP` / `# TYPE` metadata, no values.
+Prometheus scrapes happily but the gauges stay empty. Grafana shows
+"No data" with no error anywhere.
+
+**Lesson**: when adding observability, the producer and consumer must
+share an explicit schema. Document the schema next to METRIC_NAMES and
+fail-fast in tests when an event is emitted that no handler recognises.
+
+### 5A.2 Identity labels need to be injected into EVERY event
+The exporter pulls `framework`, `tpu_version`, `workload_name`, and
+`run_mode` from each event's top-level fields, defaulting to
+`framework="cpu_sim", tpu_version="cpu_sim", workload_name="unknown",
+run_mode="local_cpu"` if absent. Dashboards have template variables
+defaulting to `framework=jax, tpu_version=v5e` — so even when metric
+*values* are correct, the template filter excludes everything.
+
+**Fix**: in the runner, set up an `_identity` dict once and
+`fields.setdefault(k, v)` for every emit().
+
+### 5A.3 Promtail's positions cache survives container restart
+Promtail stores its file offsets in `/tmp/positions.yaml` inside the
+container. After it tails a file to EOF, the position is "stuck" at
+file size; restarting the container re-reads the SAME positions file
+and seeks back to EOF. The fix:
+
+```bash
+docker exec cloud_tpu_lab_promtail rm -f /tmp/positions.yaml
+docker restart cloud_tpu_lab_promtail
+```
+
+Restart-without-rm does nothing. The `/tmp` inside the container is
+its own tmpfs and survives `docker restart` (only `docker rm` clears it).
+
+### 5A.4 Loki's INSTANT query has a narrow default window
+`curl 'http://localhost:3100/loki/api/v1/query?query={app=...}'` returns
+streams=0 for events more than a few minutes old. Use `query_range`
+with explicit `start` / `end`, or in Grafana set the time picker to
+"Last 24 hours" before querying.
+
+This trips up CI-style validation: an "is data flowing?" instant query
+falsely reports no, even when a 30-minute-old event is sitting in Loki.
+
+### 5A.5 Promtail watches a fixed glob — `from_vm/<RUN_TAG>/` isn't covered
+The compose bind-mount maps `../artifacts/logs` → `/var/log/cloud_tpu_lab`,
+and Promtail's `__path__` is `/var/log/cloud_tpu_lab/*.jsonl` (not
+recursive). Files dropped into `artifacts/from_vm/<RUN_TAG>/` are
+invisible. Two options:
+1. Copy / symlink the JSONL up to `artifacts/logs/` (current pattern;
+   `observability/load_run.sh` does this).
+2. Switch the mount to `../artifacts:/var/log/cloud_tpu_lab` and the
+   glob to `**/*.jsonl` — durable but loses isolation between runs.
+
+### 5A.6 Three independent data planes must all be alive
+Grafana needing real data on the laptop means **three** things must run
+that aren't `docker compose up`:
+
+| Source                                         | Lives where                                  | How it starts                              |
+|------------------------------------------------|----------------------------------------------|--------------------------------------------|
+| **Workload metrics** (JSONL → Prometheus)      | Python exporter on host @ :9100              | `python3 observability/exporters/cloud_tpu_metrics_exporter.py` |
+| **Workload logs** (JSONL → Loki)               | Promtail container in compose                | comes up with the stack                    |
+| **GCP infra metrics** (Cloud Monitoring → Prom) | stackdriver-exporter container in compose    | comes up with the stack                    |
+
+The host exporter is the most-forgotten one. `observability/load_run.sh`
+now handles its lifecycle.
+
+### 5A.7 One-command loader: `observability/load_run.sh`
+Wraps the entire "I have a collected run, make Grafana show it" chain:
+pick newest run dir → normalise JSONL schema → copy to where Promtail
+and the exporter watch → restart the host exporter → clear Promtail's
+position cache + restart → verify Prometheus/Loki have the data →
+print a deep-link to Grafana with template vars pre-filled.
+
+This script is the answer every time the user asks "why don't I see
+anything in Grafana?" after a real run.
+
 ---
 
 ## 6. Operational gotchas
@@ -297,3 +458,52 @@ Always probe `accelerator-types list` before assuming it's an IAM problem.
   per 2026-05; see 4.3)
 - **Multi-arch stackdriver-exporter image** (build from source or wait
   for upstream to publish arm64; currently amd64-only via Rosetta)
+- **Schema-conformance test for the runner** (see 5A.1) — a unit test
+  that emits one of each event type and asserts the exporter handler
+  catches it would have prevented the train.step / runtime.step bug
+- **Promtail recursive glob** (see 5A.5) so future `from_vm/<RUN_TAG>/`
+  artifacts are picked up without a copy step
+- **`xprof/` directory often half-written** on short runs — the
+  `jax.profiler.stop_trace` flush sometimes only produces `plugins/profile/
+  <ts>/` with the trace `.pb` missing. Need either a min-run-length
+  guard or explicit `sync` before SCP
+
+## 8. Pipeline in one mental model
+
+```
+              ┌─────────────────────────────┐
+   TPU VM ───►│ examples/run_jax_real_tpu.py│
+              │   ┌───────────────────────┐ │
+              │   │ jax.profiler.trace    │ │──► xprof/
+              │   │ XLA_FLAGS=--xla_dump  │ │──► hlo/
+              │   │ jax.devices()[0]      │ │
+              │   │   .memory_stats()     │ │──► run.jsonl  (OCT events)
+              │   │ MetricStream          │ │──► run.csv    (Prometheus metrics)
+              │   │ render_run_report     │ │──► run.md     (human report)
+              │   └───────────────────────┘ │
+              └─────────────────────────────┘
+                            │
+                            │ collect_artifacts.sh / cloudshell download
+                            ▼
+              ┌─────────────────────────────┐
+   LAPTOP ───►│ artifacts/from_vm/<RUN_TAG> │
+              └─────────────────────────────┘
+                            │
+                            │ observability/load_run.sh
+                            ▼
+              ┌─────────────────────────────────────┐
+              │ artifacts/logs/    (Promtail watches)│──► Loki
+              │ artifacts/metrics/ (exporter reads) │──► :9100 ──► Prometheus
+              └─────────────────────────────────────┘
+                                                            │
+              ┌─────────────────────────────────────┐       │
+              │ GCP Cloud Monitoring API            │──► stackdriver-exporter
+              └─────────────────────────────────────┘   (in docker)  │
+                                                                     ▼
+                                                                  Grafana
+                                                                  :3000
+```
+
+Three data planes, two halves (workload vs infra). When something's
+empty in Grafana, walk the diagram from the source forward — the gap
+is always at one specific arrow.
