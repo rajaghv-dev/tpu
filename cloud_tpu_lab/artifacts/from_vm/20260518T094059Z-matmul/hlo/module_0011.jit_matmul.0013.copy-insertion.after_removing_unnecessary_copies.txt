@@ -1,0 +1,26 @@
+HloModule jit_matmul, entry_computation_layout={(bf16[512,512]{1,0}, bf16[512,512]{1,0})->bf16[512,512]{1,0}}, allow_spmd_sharding_propagation_to_parameters={true,true}, allow_spmd_sharding_propagation_to_output={true}
+
+%parallel_convert (p: bf16[512,512]) -> f32[512,512] {
+  %p = bf16[512,512]{1,0} parameter(0)
+  ROOT %convert.clone = f32[512,512]{1,0} convert(%p), backend_config={"outer_dimension_partitions":["5"]}
+}
+
+%parallel_convert.1 (p.1: bf16[512,512]) -> f32[512,512] {
+  %p.1 = bf16[512,512]{1,0} parameter(0)
+  ROOT %convert.1.clone = f32[512,512]{1,0} convert(%p.1), backend_config={"outer_dimension_partitions":["5"]}
+}
+
+%parallel_convert.2 (p.2: f32[512,512]) -> bf16[512,512] {
+  %p.2 = f32[512,512]{1,0} parameter(0)
+  ROOT %convert.2.clone = bf16[512,512]{1,0} convert(%p.2), backend_config={"outer_dimension_partitions":["5"]}
+}
+
+ENTRY %main.4 (Arg_0.1: bf16[512,512], Arg_1.2: bf16[512,512]) -> bf16[512,512] {
+  %Arg_0.1 = bf16[512,512]{1,0} parameter(0), metadata={op_name="a"}
+  %call = f32[512,512]{1,0} call(%Arg_0.1), to_apply=%parallel_convert
+  %Arg_1.2 = bf16[512,512]{1,0} parameter(1), metadata={op_name="b"}
+  %call.1 = f32[512,512]{1,0} call(%Arg_1.2), to_apply=%parallel_convert.1
+  %dot.3 = f32[512,512]{1,0} dot(%call, %call.1), lhs_contracting_dims={1}, rhs_contracting_dims={0}, metadata={op_name="jit(matmul)/jit(main)/dot_general" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=93}
+  ROOT %call.2 = bf16[512,512]{1,0} call(%dot.3), to_apply=%parallel_convert.2
+}
+

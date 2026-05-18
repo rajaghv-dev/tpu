@@ -1,0 +1,14 @@
+HloModule jit__reduce_sum, entry_computation_layout={(bf16[512,512]{1,0:T(8,128)(2,1)})->bf16[]{:T(256)}}, allow_spmd_sharding_propagation_to_parameters={true}, allow_spmd_sharding_propagation_to_output={true}
+
+%region_0.7.clone (Arg_0.0: bf16[], Arg_1.0: bf16[]) -> bf16[] {
+  %Arg_0.0 = bf16[] parameter(0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+  %Arg_1.0 = bf16[] parameter(1), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+  ROOT %add.0 = bf16[] add(%Arg_0.0, %Arg_1.0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+}
+
+ENTRY %main.10 (Arg_0.1: bf16[512,512]) -> bf16[] {
+  %Arg_0.1 = bf16[512,512]{1,0} parameter(0), metadata={op_name="a"}
+  %constant = bf16[] constant(0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+  ROOT %reduce = bf16[] reduce(%Arg_0.1, %constant), dimensions={0,1}, to_apply=%region_0.7.clone, metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+}
+

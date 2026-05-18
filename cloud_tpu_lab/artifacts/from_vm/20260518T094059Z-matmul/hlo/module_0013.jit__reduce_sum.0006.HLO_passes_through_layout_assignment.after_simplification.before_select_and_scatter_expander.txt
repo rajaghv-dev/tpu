@@ -1,0 +1,17 @@
+HloModule jit__reduce_sum, entry_computation_layout={(bf16[512,512]{1,0})->bf16[]}, allow_spmd_sharding_propagation_to_parameters={true}, allow_spmd_sharding_propagation_to_output={true}
+
+%region_0.7 (Arg_0.4: f32[], Arg_1.5: f32[]) -> f32[] {
+  %Arg_0.4 = f32[] parameter(0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+  %Arg_1.5 = f32[] parameter(1), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+  ROOT %add.6 = f32[] add(%Arg_0.4, %Arg_1.5), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+}
+
+ENTRY %main.10 (Arg_0.1: bf16[512,512]) -> bf16[] {
+  %Arg_0.1 = bf16[512,512]{1,0} parameter(0), metadata={op_name="a"}
+  %convert.3 = f32[512,512]{1,0} convert(%Arg_0.1), metadata={op_name="jit(_reduce_sum)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+  %constant.2 = f32[] constant(0)
+  %reduce-window = f32[16,16]{1,0} reduce-window(%convert.3, %constant.2), window={size=32x32 stride=32x32}, to_apply=%region_0.7
+  %reduce.8 = f32[] reduce(%reduce-window, %constant.2), dimensions={0,1}, to_apply=%region_0.7, metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+  ROOT %convert.9 = bf16[] convert(%reduce.8), metadata={op_name="jit(_reduce_sum)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+}
+

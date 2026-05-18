@@ -1,0 +1,161 @@
+{
+  "traceEvents": [
+    {
+      "name": "xla.compile",
+      "cat": "compile",
+      "ph": "X",
+      "ts": 3257930,
+      "dur": 173025,
+      "pid": 1,
+      "tid": 0,
+      "args": {
+        "trace_id": "TRACE-0001",
+        "executable_id": "EXE-0001"
+      }
+    },
+    {
+      "name": "step.0",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3257939,
+      "dur": 173025,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 0,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0001"
+      }
+    },
+    {
+      "name": "step.1",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3258434,
+      "dur": 200,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 1,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0002"
+      }
+    },
+    {
+      "name": "step.2",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3258793,
+      "dur": 177,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 2,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0003"
+      }
+    },
+    {
+      "name": "step.3",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3259134,
+      "dur": 172,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 3,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0004"
+      }
+    },
+    {
+      "name": "step.4",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3259469,
+      "dur": 171,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 4,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0005"
+      }
+    },
+    {
+      "name": "step.5",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3259804,
+      "dur": 173,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 5,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0006"
+      }
+    },
+    {
+      "name": "step.6",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3260170,
+      "dur": 203,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 6,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0007"
+      }
+    },
+    {
+      "name": "step.7",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3260506,
+      "dur": 174,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 7,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0008"
+      }
+    },
+    {
+      "name": "step.8",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3260849,
+      "dur": 178,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 8,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0009"
+      }
+    },
+    {
+      "name": "step.9",
+      "cat": "device",
+      "ph": "X",
+      "ts": 3261181,
+      "dur": 172,
+      "pid": 1,
+      "tid": 2,
+      "args": {
+        "step": 9,
+        "trace_id": "TRACE-0001",
+        "step_id": "STEP-0010"
+      }
+    }
+  ],
+  "displayTimeUnit": "ms",
+  "metadata": {
+    "trace_id": "TRACE-0001"
+  }
+}

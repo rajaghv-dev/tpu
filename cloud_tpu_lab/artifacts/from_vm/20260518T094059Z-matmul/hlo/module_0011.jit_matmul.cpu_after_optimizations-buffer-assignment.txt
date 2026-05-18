@@ -1,0 +1,88 @@
+BufferAssignment:
+allocation 0: size 524288, output shape is |bf16[512,512]|, maybe-live-out:
+ value: <2 convert.2.clone @0> (size=524288,offset=0): bf16[512,512]{1,0}
+allocation 1: size 524288, parameter 0, shape |bf16[512,512]| at ShapeIndex {}:
+ value: <3 Arg_0.1 @0> (size=524288,offset=0): bf16[512,512]{1,0}
+allocation 2: size 524288, parameter 1, shape |bf16[512,512]| at ShapeIndex {}:
+ value: <4 Arg_1.2 @0> (size=524288,offset=0): bf16[512,512]{1,0}
+allocation 3: size 3145728, preallocated-temp:
+ value: <0 convert.clone @0> (size=1048576,offset=0): f32[512,512]{1,0}
+ value: <1 convert.1.clone @0> (size=1048576,offset=1048576): f32[512,512]{1,0}
+ value: <5 dot.3 @0> (size=1048576,offset=2097152): f32[512,512]{1,0}
+
+Total bytes used: 4718592 (4.50MiB)
+
+Used values:
+<0 convert.clone @0>
+ positions:
+  convert.clone
+  call
+ uses:
+  dot.3, operand 0
+ from instruction: %convert.clone = f32[512,512]{1,0} convert(%p), backend_config={"outer_dimension_partitions":["5"]}
+<1 convert.1.clone @0>
+ positions:
+  convert.1.clone
+  call.1
+ uses:
+  dot.3, operand 1
+ from instruction: %convert.1.clone = f32[512,512]{1,0} convert(%p.1), backend_config={"outer_dimension_partitions":["5"]}
+<2 convert.2.clone @0>
+ positions:
+  convert.2.clone
+  call.2
+ uses:
+ from instruction: %convert.2.clone = bf16[512,512]{1,0} convert(%p.2), backend_config={"outer_dimension_partitions":["5"]}
+<3 Arg_0.1 @0>
+ positions:
+  Arg_0.1
+  p
+ uses:
+  call, operand 0
+  convert.clone, operand 0
+ from instruction: %Arg_0.1 = bf16[512,512]{1,0} parameter(0), metadata={op_name="a"}
+<4 Arg_1.2 @0>
+ positions:
+  Arg_1.2
+  p.1
+ uses:
+  call.1, operand 0
+  convert.1.clone, operand 0
+ from instruction: %Arg_1.2 = bf16[512,512]{1,0} parameter(1), metadata={op_name="b"}
+<5 dot.3 @0>
+ positions:
+  dot.3
+  p.2
+ uses:
+  call.2, operand 0
+  convert.2.clone, operand 0
+ from instruction: %dot.3 = f32[512,512]{1,0} dot(%call, %call.1), lhs_contracting_dims={1}, rhs_contracting_dims={0}, metadata={op_name="jit(matmul)/jit(main)/dot_general" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=93}
+
+
+HloLiveRange (max 12):
+  InstructionSequence:
+    0:Arg_0.1
+    1:Arg_1.2
+    2:p
+    3:convert.clone
+    4:call
+    5:p.1
+    6:convert.1.clone
+    7:call.1
+    8:dot.3
+    9:p.2
+    10:convert.2.clone
+    11:call.2
+  BufferLiveRange:
+    convert.clone{}:3-8
+    convert.1.clone{}:6-8
+    convert.2.clone{}:10-12
+    Arg_0.1{}:0-12
+    Arg_1.2{}:0-12
+    dot.3{}:8-10
+  Live ranges at 8 (peak):
+    convert.1.clone{}: 1048576 bytes (cumulative: 1048576 bytes)
+    convert.clone{}: 1048576 bytes (cumulative: 2097152 bytes)
+    dot.3{}: 1048576 bytes (cumulative: 3145728 bytes)
+    Arg_0.1{}: 524288 bytes (cumulative: 3670016 bytes)
+    Arg_1.2{}: 524288 bytes (cumulative: 4194304 bytes)

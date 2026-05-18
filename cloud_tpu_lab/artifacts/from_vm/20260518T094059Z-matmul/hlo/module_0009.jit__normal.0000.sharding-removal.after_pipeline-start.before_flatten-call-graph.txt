@@ -1,0 +1,280 @@
+HloModule jit__normal, entry_computation_layout={(u32[2]{0})->bf16[512,512]{1,0}}, allow_spmd_sharding_propagation_to_parameters={true}, allow_spmd_sharding_propagation_to_output={true}
+
+%None.163 (Arg_0.103: s32[], Arg_1.104: u32[512,512], Arg_2.105: u32[512,512], Arg_3.106: u32[], Arg_4.107: u32[], Arg_5.108: u32[], Arg_6.109: u32[4], Arg_7.110: u32[4]) -> (s32[], u32[512,512], u32[512,512], u32[], u32[], /*index=5*/u32[], u32[4], u32[4]) {
+  %Arg_0.103 = s32[] parameter(0), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %constant.112 = s32[] constant(1)
+  %add.113 = s32[] add(%Arg_0.103, %constant.112), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_1.104 = u32[512,512]{1,0} parameter(1), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %Arg_2.105 = u32[512,512]{1,0} parameter(2), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %add.116 = u32[512,512]{1,0} add(%Arg_1.104, %Arg_2.105), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_6.109 = u32[4]{0} parameter(6), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %slice.114 = u32[1]{0} slice(%Arg_6.109), slice={[0:1]}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.115 = u32[] reshape(%slice.114), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.117 = u32[512,512]{1,0} broadcast(%reshape.115), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-left.118 = u32[512,512]{1,0} shift-left(%Arg_2.105, %broadcast.117), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.111 = u32[] constant(32)
+  %subtract.119 = u32[] subtract(%constant.111, %reshape.115), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.120 = u32[512,512]{1,0} broadcast(%subtract.119), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-right-logical.121 = u32[512,512]{1,0} shift-right-logical(%Arg_2.105, %broadcast.120), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %or.122 = u32[512,512]{1,0} or(%shift-left.118, %shift-right-logical.121), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %xor.123 = u32[512,512]{1,0} xor(%add.116, %or.122), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.126 = u32[512,512]{1,0} add(%add.116, %xor.123), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %slice.124 = u32[1]{0} slice(%Arg_6.109), slice={[1:2]}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.125 = u32[] reshape(%slice.124), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.127 = u32[512,512]{1,0} broadcast(%reshape.125), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-left.128 = u32[512,512]{1,0} shift-left(%xor.123, %broadcast.127), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %subtract.129 = u32[] subtract(%constant.111, %reshape.125), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.130 = u32[512,512]{1,0} broadcast(%subtract.129), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-right-logical.131 = u32[512,512]{1,0} shift-right-logical(%xor.123, %broadcast.130), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %or.132 = u32[512,512]{1,0} or(%shift-left.128, %shift-right-logical.131), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %xor.133 = u32[512,512]{1,0} xor(%add.126, %or.132), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.136 = u32[512,512]{1,0} add(%add.126, %xor.133), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %slice.134 = u32[1]{0} slice(%Arg_6.109), slice={[2:3]}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.135 = u32[] reshape(%slice.134), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.137 = u32[512,512]{1,0} broadcast(%reshape.135), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-left.138 = u32[512,512]{1,0} shift-left(%xor.133, %broadcast.137), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %subtract.139 = u32[] subtract(%constant.111, %reshape.135), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.140 = u32[512,512]{1,0} broadcast(%subtract.139), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-right-logical.141 = u32[512,512]{1,0} shift-right-logical(%xor.133, %broadcast.140), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %or.142 = u32[512,512]{1,0} or(%shift-left.138, %shift-right-logical.141), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %xor.143 = u32[512,512]{1,0} xor(%add.136, %or.142), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.146 = u32[512,512]{1,0} add(%add.136, %xor.143), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_3.106 = u32[] parameter(3), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %broadcast.154 = u32[512,512]{1,0} broadcast(%Arg_3.106), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.155 = u32[512,512]{1,0} add(%add.146, %broadcast.154), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %slice.144 = u32[1]{0} slice(%Arg_6.109), slice={[3:4]}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.145 = u32[] reshape(%slice.144), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.147 = u32[512,512]{1,0} broadcast(%reshape.145), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-left.148 = u32[512,512]{1,0} shift-left(%xor.143, %broadcast.147), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %subtract.149 = u32[] subtract(%constant.111, %reshape.145), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.150 = u32[512,512]{1,0} broadcast(%subtract.149), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %shift-right-logical.151 = u32[512,512]{1,0} shift-right-logical(%xor.143, %broadcast.150), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %or.152 = u32[512,512]{1,0} or(%shift-left.148, %shift-right-logical.151), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %xor.153 = u32[512,512]{1,0} xor(%add.146, %or.152), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_4.107 = u32[] parameter(4), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %broadcast.156 = u32[512,512]{1,0} broadcast(%Arg_4.107), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.157 = u32[512,512]{1,0} add(%xor.153, %broadcast.156), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.158 = s32[] add(%Arg_0.103, %constant.112), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %convert.159 = u32[] convert(%add.158), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.160 = u32[512,512]{1,0} broadcast(%convert.159), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.161 = u32[512,512]{1,0} add(%add.157, %broadcast.160), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_5.108 = u32[] parameter(5), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  %Arg_7.110 = u32[4]{0} parameter(7), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/closed_call"}
+  ROOT %tuple.162 = (s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(%add.113, %add.155, %add.161, %Arg_4.107, %Arg_5.108, /*index=5*/%Arg_3.106, %Arg_7.110, %Arg_6.109)
+}
+
+%region_0.175 (arg_tuple.92: (s32[], s32[], u32[512,512], u32[512,512], u32[], /*index=5*/u32[], u32[], u32[4], u32[4])) -> (s32[], s32[], u32[512,512], u32[512,512], u32[], /*index=5*/u32[], u32[], u32[4], u32[4]) {
+  %arg_tuple.92 = (s32[], s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  %get-tuple-element.93 = s32[] get-tuple-element(%arg_tuple.92), index=0
+  %constant.102 = s32[] constant(1)
+  %add.173 = s32[] add(%get-tuple-element.93, %constant.102), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.94 = s32[] get-tuple-element(%arg_tuple.92), index=1
+  %get-tuple-element.95 = u32[512,512]{1,0} get-tuple-element(%arg_tuple.92), index=2
+  %get-tuple-element.96 = u32[512,512]{1,0} get-tuple-element(%arg_tuple.92), index=3
+  %get-tuple-element.97 = u32[] get-tuple-element(%arg_tuple.92), index=4
+  %get-tuple-element.98 = u32[] get-tuple-element(%arg_tuple.92), index=5
+  %get-tuple-element.99 = u32[] get-tuple-element(%arg_tuple.92), index=6
+  %get-tuple-element.100 = u32[4]{0} get-tuple-element(%arg_tuple.92), index=7
+  %get-tuple-element.101 = u32[4]{0} get-tuple-element(%arg_tuple.92), index=8
+  %call.164 = (s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) call(%get-tuple-element.94, %get-tuple-element.95, %get-tuple-element.96, %get-tuple-element.97, %get-tuple-element.98, /*index=5*/%get-tuple-element.99, %get-tuple-element.100, %get-tuple-element.101), to_apply=%None.163
+  %get-tuple-element.165 = s32[] get-tuple-element(%call.164), index=0
+  %get-tuple-element.166 = u32[512,512]{1,0} get-tuple-element(%call.164), index=1
+  %get-tuple-element.167 = u32[512,512]{1,0} get-tuple-element(%call.164), index=2
+  %get-tuple-element.168 = u32[] get-tuple-element(%call.164), index=3
+  %get-tuple-element.169 = u32[] get-tuple-element(%call.164), index=4
+  %get-tuple-element.170 = u32[] get-tuple-element(%call.164), index=5
+  %get-tuple-element.171 = u32[4]{0} get-tuple-element(%call.164), index=6
+  %get-tuple-element.172 = u32[4]{0} get-tuple-element(%call.164), index=7
+  ROOT %tuple.174 = (s32[], s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(%add.173, %get-tuple-element.165, %get-tuple-element.166, %get-tuple-element.167, %get-tuple-element.168, /*index=5*/%get-tuple-element.169, %get-tuple-element.170, %get-tuple-element.171, %get-tuple-element.172)
+}
+
+%region_1.188 (arg_tuple.176: (s32[], s32[], u32[512,512], u32[512,512], u32[], /*index=5*/u32[], u32[], u32[4], u32[4])) -> pred[] {
+  %arg_tuple.176 = (s32[], s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  %get-tuple-element.178 = s32[] get-tuple-element(%arg_tuple.176), index=1
+  %get-tuple-element.179 = u32[512,512]{1,0} get-tuple-element(%arg_tuple.176), index=2
+  %get-tuple-element.180 = u32[512,512]{1,0} get-tuple-element(%arg_tuple.176), index=3
+  %get-tuple-element.181 = u32[] get-tuple-element(%arg_tuple.176), index=4
+  %get-tuple-element.182 = u32[] get-tuple-element(%arg_tuple.176), index=5
+  %get-tuple-element.183 = u32[] get-tuple-element(%arg_tuple.176), index=6
+  %get-tuple-element.184 = u32[4]{0} get-tuple-element(%arg_tuple.176), index=7
+  %get-tuple-element.185 = u32[4]{0} get-tuple-element(%arg_tuple.176), index=8
+  %get-tuple-element.177 = s32[] get-tuple-element(%arg_tuple.176), index=0
+  %constant.186 = s32[] constant(5)
+  ROOT %compare.187 = pred[] compare(%get-tuple-element.177, %constant.186), direction=LT, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while/cond/lt" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+}
+
+%_uniform.220 (Arg_0.54: u32[2], Arg_1.55: bf16[], Arg_2.56: bf16[]) -> bf16[512,512] {
+  %constant.67 = s32[] constant(0)
+  %iota.77 = u64[512]{0} iota(), iota_dimension=0, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.78 = u64[512,512]{1,0} broadcast(%iota.77), dimensions={0}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.65 = u64[] constant(512)
+  %broadcast.66 = u64[512,512]{1,0} broadcast(%constant.65), dimensions={}
+  %multiply.81 = u64[512,512]{1,0} multiply(%broadcast.78, %broadcast.66), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %iota.79 = u64[512]{0} iota(), iota_dimension=0, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.80 = u64[512,512]{1,0} broadcast(%iota.79), dimensions={1}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.82 = u64[512,512]{1,0} add(%multiply.81, %broadcast.80), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.63 = u64[] constant(32)
+  %broadcast.64 = u64[512,512]{1,0} broadcast(%constant.63), dimensions={}
+  %shift-right-logical.83 = u64[512,512]{1,0} shift-right-logical(%add.82, %broadcast.64), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %convert.85 = u32[512,512]{1,0} convert(%shift-right-logical.83), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_0.54 = u32[2]{0} parameter(0), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/pjit"}
+  %slice.73 = u32[1]{0} slice(%Arg_0.54), slice={[0:1]}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.74 = u32[] reshape(%slice.73), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.88 = u32[512,512]{1,0} broadcast(%reshape.74), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.89 = u32[512,512]{1,0} add(%convert.85, %broadcast.88), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %convert.84 = u32[512,512]{1,0} convert(%add.82), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %slice.75 = u32[1]{0} slice(%Arg_0.54), slice={[1:2]}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.76 = u32[] reshape(%slice.75), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.90 = u32[512,512]{1,0} broadcast(%reshape.76), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.91 = u32[512,512]{1,0} add(%convert.84, %broadcast.90), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %xor.86 = u32[] xor(%reshape.74, %reshape.76), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.68 = u32[] constant(466688986)
+  %xor.87 = u32[] xor(%xor.86, %constant.68), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.70 = u32[4]{0} constant({13, 15, 26, 6})
+  %constant.69 = u32[4]{0} constant({17, 29, 16, 24})
+  %tuple.189 = (s32[], s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) tuple(%constant.67, %constant.67, %add.89, %add.91, %reshape.76, /*index=5*/%xor.87, %reshape.74, %constant.70, %constant.69), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %while.190 = (s32[], s32[], u32[512,512]{1,0}, u32[512,512]{1,0}, u32[], /*index=5*/u32[], u32[], u32[4]{0}, u32[4]{0}) while(%tuple.189), condition=%region_1.188, body=%region_0.175, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.191 = s32[] get-tuple-element(%while.190), index=0, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.192 = s32[] get-tuple-element(%while.190), index=1, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.195 = u32[] get-tuple-element(%while.190), index=4, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.196 = u32[] get-tuple-element(%while.190), index=5, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.197 = u32[] get-tuple-element(%while.190), index=6, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.198 = u32[4]{0} get-tuple-element(%while.190), index=7, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.199 = u32[4]{0} get-tuple-element(%while.190), index=8, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_1.55 = bf16[] parameter(1), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/pjit"}
+  %reshape.71 = bf16[1,1]{1,0} reshape(%Arg_1.55), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/broadcast_in_dim" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.216 = bf16[1,1]{1,0} broadcast(%reshape.71), dimensions={0,1}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/max" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.217 = bf16[] reshape(%broadcast.216), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/max" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.218 = bf16[512,512]{1,0} broadcast(%reshape.217), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/max" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.193 = u32[512,512]{1,0} get-tuple-element(%while.190), index=2, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %get-tuple-element.194 = u32[512,512]{1,0} get-tuple-element(%while.190), index=3, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %xor.200 = u32[512,512]{1,0} xor(%get-tuple-element.193, %get-tuple-element.194), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %convert.201 = u8[512,512]{1,0} convert(%xor.200), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %convert.202 = u16[512,512]{1,0} convert(%convert.201), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.61 = u16[] constant(1)
+  %broadcast.62 = u16[512,512]{1,0} broadcast(%constant.61), dimensions={}
+  %shift-right-logical.203 = u16[512,512]{1,0} shift-right-logical(%convert.202, %broadcast.62), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.59 = u16[] constant(16256)
+  %broadcast.60 = u16[512,512]{1,0} broadcast(%constant.59), dimensions={}
+  %or.204 = u16[512,512]{1,0} or(%shift-right-logical.203, %broadcast.60), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %bitcast-convert.205 = bf16[512,512]{1,0} bitcast-convert(%or.204), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/bitcast_convert_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.57 = bf16[] constant(1)
+  %broadcast.58 = bf16[512,512]{1,0} broadcast(%constant.57), dimensions={}
+  %subtract.206 = bf16[512,512]{1,0} subtract(%bitcast-convert.205, %broadcast.58), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %Arg_2.56 = bf16[] parameter(2), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/pjit"}
+  %reshape.72 = bf16[1,1]{1,0} reshape(%Arg_2.56), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/broadcast_in_dim" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %subtract.207 = bf16[1,1]{1,0} subtract(%reshape.72, %reshape.71), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.208 = bf16[1,1]{1,0} broadcast(%subtract.207), dimensions={0,1}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/mul" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.209 = bf16[] reshape(%broadcast.208), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/mul" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.210 = bf16[512,512]{1,0} broadcast(%reshape.209), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/mul" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.211 = bf16[512,512]{1,0} multiply(%subtract.206, %broadcast.210), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/mul" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.212 = bf16[1,1]{1,0} broadcast(%reshape.71), dimensions={0,1}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %reshape.213 = bf16[] reshape(%broadcast.212), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %broadcast.214 = bf16[512,512]{1,0} broadcast(%reshape.213), dimensions={}, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.215 = bf16[512,512]{1,0} add(%multiply.211, %broadcast.214), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  ROOT %maximum.219 = bf16[512,512]{1,0} maximum(%broadcast.218, %add.215), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/jit(_uniform)/max" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+}
+
+%_normal_real.264 (Arg_0.3: u32[2]) -> bf16[512,512] {
+  %Arg_0.3 = u32[2]{0} parameter(0), metadata={op_name="jit(_normal)/jit(main)/pjit"}
+  %constant.52 = bf16[] constant(-0.9961)
+  %constant.53 = bf16[] constant(1)
+  %call.221 = bf16[512,512]{1,0} call(%Arg_0.3, %constant.52, %constant.53), to_apply=%_uniform.220
+  %convert.222 = f32[512,512]{1,0} convert(%call.221), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %abs.258 = f32[512,512]{1,0} abs(%convert.222), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.8 = f32[] constant(1)
+  %broadcast.9 = f32[512,512]{1,0} broadcast(%constant.8), dimensions={}
+  %compare.259 = pred[512,512]{1,0} compare(%abs.258, %broadcast.9), direction=EQ, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.6 = f32[] constant(inf)
+  %broadcast.7 = f32[512,512]{1,0} broadcast(%constant.6), dimensions={}
+  %multiply.260 = f32[512,512]{1,0} multiply(%convert.222, %broadcast.7), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %negate.223 = f32[512,512]{1,0} negate(%convert.222), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.224 = f32[512,512]{1,0} multiply(%convert.222, %negate.223), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %log-plus-one.225 = f32[512,512]{1,0} log-plus-one(%multiply.224), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %negate.226 = f32[512,512]{1,0} negate(%log-plus-one.225), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.50 = f32[] constant(5)
+  %broadcast.51 = f32[512,512]{1,0} broadcast(%constant.50), dimensions={}
+  %compare.227 = pred[512,512]{1,0} compare(%negate.226, %broadcast.51), direction=LT, metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.12 = f32[] constant(1.50140941)
+  %broadcast.13 = f32[512,512]{1,0} broadcast(%constant.12), dimensions={}
+  %constant.10 = f32[] constant(2.83297682)
+  %broadcast.11 = f32[512,512]{1,0} broadcast(%constant.10), dimensions={}
+  %select.254 = f32[512,512]{1,0} select(%compare.227, %broadcast.13, %broadcast.11), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.16 = f32[] constant(0.246640727)
+  %broadcast.17 = f32[512,512]{1,0} broadcast(%constant.16), dimensions={}
+  %constant.14 = f32[] constant(1.00167406)
+  %broadcast.15 = f32[512,512]{1,0} broadcast(%constant.14), dimensions={}
+  %select.251 = f32[512,512]{1,0} select(%compare.227, %broadcast.17, %broadcast.15), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.20 = f32[] constant(-0.00417768164)
+  %broadcast.21 = f32[512,512]{1,0} broadcast(%constant.20), dimensions={}
+  %constant.18 = f32[] constant(0.00943887047)
+  %broadcast.19 = f32[512,512]{1,0} broadcast(%constant.18), dimensions={}
+  %select.248 = f32[512,512]{1,0} select(%compare.227, %broadcast.21, %broadcast.19), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.24 = f32[] constant(-0.00125372503)
+  %broadcast.25 = f32[512,512]{1,0} broadcast(%constant.24), dimensions={}
+  %constant.22 = f32[] constant(-0.0076224613)
+  %broadcast.23 = f32[512,512]{1,0} broadcast(%constant.22), dimensions={}
+  %select.245 = f32[512,512]{1,0} select(%compare.227, %broadcast.25, %broadcast.23), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.28 = f32[] constant(0.00021858087)
+  %broadcast.29 = f32[512,512]{1,0} broadcast(%constant.28), dimensions={}
+  %constant.26 = f32[] constant(0.00573950773)
+  %broadcast.27 = f32[512,512]{1,0} broadcast(%constant.26), dimensions={}
+  %select.242 = f32[512,512]{1,0} select(%compare.227, %broadcast.29, %broadcast.27), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.32 = f32[] constant(-4.39150654e-06)
+  %broadcast.33 = f32[512,512]{1,0} broadcast(%constant.32), dimensions={}
+  %constant.30 = f32[] constant(-0.00367342844)
+  %broadcast.31 = f32[512,512]{1,0} broadcast(%constant.30), dimensions={}
+  %select.239 = f32[512,512]{1,0} select(%compare.227, %broadcast.33, %broadcast.31), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.36 = f32[] constant(-3.5233877e-06)
+  %broadcast.37 = f32[512,512]{1,0} broadcast(%constant.36), dimensions={}
+  %constant.34 = f32[] constant(0.00134934322)
+  %broadcast.35 = f32[512,512]{1,0} broadcast(%constant.34), dimensions={}
+  %select.236 = f32[512,512]{1,0} select(%compare.227, %broadcast.37, %broadcast.35), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.40 = f32[] constant(3.43273939e-07)
+  %broadcast.41 = f32[512,512]{1,0} broadcast(%constant.40), dimensions={}
+  %constant.38 = f32[] constant(0.000100950558)
+  %broadcast.39 = f32[512,512]{1,0} broadcast(%constant.38), dimensions={}
+  %select.233 = f32[512,512]{1,0} select(%compare.227, %broadcast.41, %broadcast.39), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.44 = f32[] constant(2.81022636e-08)
+  %broadcast.45 = f32[512,512]{1,0} broadcast(%constant.44), dimensions={}
+  %constant.42 = f32[] constant(-0.000200214257)
+  %broadcast.43 = f32[512,512]{1,0} broadcast(%constant.42), dimensions={}
+  %select.232 = f32[512,512]{1,0} select(%compare.227, %broadcast.45, %broadcast.43), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.48 = f32[] constant(2.5)
+  %broadcast.49 = f32[512,512]{1,0} broadcast(%constant.48), dimensions={}
+  %subtract.228 = f32[512,512]{1,0} subtract(%negate.226, %broadcast.49), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %sqrt.229 = f32[512,512]{1,0} sqrt(%negate.226), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.46 = f32[] constant(3)
+  %broadcast.47 = f32[512,512]{1,0} broadcast(%constant.46), dimensions={}
+  %subtract.230 = f32[512,512]{1,0} subtract(%sqrt.229, %broadcast.47), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %select.231 = f32[512,512]{1,0} select(%compare.227, %subtract.228, %subtract.230), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.234 = f32[512,512]{1,0} multiply(%select.232, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.235 = f32[512,512]{1,0} add(%select.233, %multiply.234), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.237 = f32[512,512]{1,0} multiply(%add.235, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.238 = f32[512,512]{1,0} add(%select.236, %multiply.237), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.240 = f32[512,512]{1,0} multiply(%add.238, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.241 = f32[512,512]{1,0} add(%select.239, %multiply.240), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.243 = f32[512,512]{1,0} multiply(%add.241, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.244 = f32[512,512]{1,0} add(%select.242, %multiply.243), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.246 = f32[512,512]{1,0} multiply(%add.244, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.247 = f32[512,512]{1,0} add(%select.245, %multiply.246), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.249 = f32[512,512]{1,0} multiply(%add.247, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.250 = f32[512,512]{1,0} add(%select.248, %multiply.249), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.252 = f32[512,512]{1,0} multiply(%add.250, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.253 = f32[512,512]{1,0} add(%select.251, %multiply.252), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.255 = f32[512,512]{1,0} multiply(%add.253, %select.231), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %add.256 = f32[512,512]{1,0} add(%select.254, %multiply.255), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %multiply.257 = f32[512,512]{1,0} multiply(%add.256, %convert.222), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %select.261 = f32[512,512]{1,0} select(%compare.259, %multiply.260, %multiply.257), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %convert.262 = bf16[512,512]{1,0} convert(%select.261), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/erf_inv" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+  %constant.4 = bf16[] constant(1.414)
+  %broadcast.5 = bf16[512,512]{1,0} broadcast(%constant.4), dimensions={}
+  ROOT %multiply.263 = bf16[512,512]{1,0} multiply(%convert.262, %broadcast.5), metadata={op_name="jit(_normal)/jit(main)/jit(_normal_real)/mul" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=97}
+}
+
+ENTRY %main.266 (Arg_0.1: u32[2]) -> bf16[512,512] {
+  %Arg_0.1 = u32[2]{0} parameter(0), metadata={op_name="key"}
+  %custom-call.2 = u32[2]{0} custom-call(%Arg_0.1), custom_call_target="Sharding", sharding={replicated}
+  ROOT %call.265 = bf16[512,512]{1,0} call(%custom-call.2), to_apply=%_normal_real.264
+}
+

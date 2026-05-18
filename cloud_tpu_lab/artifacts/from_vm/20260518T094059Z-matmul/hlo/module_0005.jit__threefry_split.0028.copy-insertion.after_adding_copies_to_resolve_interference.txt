@@ -1,0 +1,218 @@
+HloModule jit__threefry_split, entry_computation_layout={(u32[2]{0})->u32[2,2]{1,0}}, allow_spmd_sharding_propagation_to_parameters={true}, allow_spmd_sharding_propagation_to_output={true}
+
+%fused_computation (param_0.2: u32[], param_1.5: u32[4], param_2.6: u32[2], param_3.7: u32[2], param_4.12: s32[]) -> u32[2] {
+  %param_3.7 = u32[2]{0} parameter(3)
+  %param_2.6 = u32[2]{0} parameter(2)
+  %add.51 = u32[2]{0} add(%param_3.7, %param_2.6), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_1.5 = u32[4]{0} parameter(1)
+  %slice.21 = u32[1]{0} slice(%param_1.5), slice={[0:1]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.11 = u32[] bitcast(%slice.21), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.59 = u32[2]{0} broadcast(%bitcast.11), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.19 = u32[2]{0} shift-left(%param_2.6, %broadcast.59), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %constant.18 = u32[] constant(32)
+  %subtract.19 = u32[] subtract(%constant.18, %bitcast.11), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.58 = u32[2]{0} broadcast(%subtract.19), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.20 = u32[2]{0} shift-right-logical(%param_2.6, %broadcast.58), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.19 = u32[2]{0} or(%shift-left.19, %shift-right-logical.20), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.21 = u32[2]{0} xor(%add.51, %or.19), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.50 = u32[2]{0} add(%add.51, %xor.21), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.20 = u32[1]{0} slice(%param_1.5), slice={[1:2]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.10 = u32[] bitcast(%slice.20), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.56 = u32[2]{0} broadcast(%bitcast.10), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.18 = u32[2]{0} shift-left(%xor.21, %broadcast.56), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %subtract.18 = u32[] subtract(%constant.18, %bitcast.10), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.55 = u32[2]{0} broadcast(%subtract.18), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.19 = u32[2]{0} shift-right-logical(%xor.21, %broadcast.55), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.18 = u32[2]{0} or(%shift-left.18, %shift-right-logical.19), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.20 = u32[2]{0} xor(%add.50, %or.18), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.49 = u32[2]{0} add(%add.50, %xor.20), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.19 = u32[1]{0} slice(%param_1.5), slice={[2:3]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.9 = u32[] bitcast(%slice.19), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.54 = u32[2]{0} broadcast(%bitcast.9), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.17 = u32[2]{0} shift-left(%xor.20, %broadcast.54), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %subtract.17 = u32[] subtract(%constant.18, %bitcast.9), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.53 = u32[2]{0} broadcast(%subtract.17), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.18 = u32[2]{0} shift-right-logical(%xor.20, %broadcast.53), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.17 = u32[2]{0} or(%shift-left.17, %shift-right-logical.18), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.19 = u32[2]{0} xor(%add.49, %or.17), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.48 = u32[2]{0} add(%add.49, %xor.19), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.18 = u32[1]{0} slice(%param_1.5), slice={[3:4]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.8 = u32[] bitcast(%slice.18), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.52 = u32[2]{0} broadcast(%bitcast.8), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.16 = u32[2]{0} shift-left(%xor.19, %broadcast.52), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %subtract.16 = u32[] subtract(%constant.18, %bitcast.8), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.51 = u32[2]{0} broadcast(%subtract.16), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.17 = u32[2]{0} shift-right-logical(%xor.19, %broadcast.51), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.16 = u32[2]{0} or(%shift-left.16, %shift-right-logical.17), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.18 = u32[2]{0} xor(%add.48, %or.16), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_0.2 = u32[] parameter(0)
+  %broadcast.49 = u32[2]{0} broadcast(%param_0.2), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.47 = u32[2]{0} add(%xor.18, %broadcast.49), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_4.12 = s32[] parameter(4)
+  %constant.19 = s32[] constant(1)
+  %add.52 = s32[] add(%param_4.12, %constant.19), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %convert.4 = u32[] convert(%add.52), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.48 = u32[2]{0} broadcast(%convert.4), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %add.45 = u32[2]{0} add(%add.47, %broadcast.48), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.1 (param_0.4: u32[], param_1.11: u32[4], param_2.14: u32[2], param_3.17: u32[2]) -> u32[2] {
+  %param_3.17 = u32[2]{0} parameter(3)
+  %param_2.14 = u32[2]{0} parameter(2)
+  %add.58 = u32[2]{0} add(%param_3.17, %param_2.14), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_1.11 = u32[4]{0} parameter(1)
+  %slice.24 = u32[1]{0} slice(%param_1.11), slice={[0:1]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.14 = u32[] bitcast(%slice.24), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.68 = u32[2]{0} broadcast(%bitcast.14), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.22 = u32[2]{0} shift-left(%param_2.14, %broadcast.68), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %constant.20 = u32[] constant(32)
+  %subtract.22 = u32[] subtract(%constant.20, %bitcast.14), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.66 = u32[2]{0} broadcast(%subtract.22), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.23 = u32[2]{0} shift-right-logical(%param_2.14, %broadcast.66), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.22 = u32[2]{0} or(%shift-left.22, %shift-right-logical.23), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.24 = u32[2]{0} xor(%add.58, %or.22), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.57 = u32[2]{0} add(%add.58, %xor.24), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.23 = u32[1]{0} slice(%param_1.11), slice={[1:2]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.13 = u32[] bitcast(%slice.23), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.65 = u32[2]{0} broadcast(%bitcast.13), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.21 = u32[2]{0} shift-left(%xor.24, %broadcast.65), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %subtract.21 = u32[] subtract(%constant.20, %bitcast.13), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.64 = u32[2]{0} broadcast(%subtract.21), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.22 = u32[2]{0} shift-right-logical(%xor.24, %broadcast.64), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.21 = u32[2]{0} or(%shift-left.21, %shift-right-logical.22), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.23 = u32[2]{0} xor(%add.57, %or.21), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.55 = u32[2]{0} add(%add.57, %xor.23), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.22 = u32[1]{0} slice(%param_1.11), slice={[2:3]}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.12 = u32[] bitcast(%slice.22), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.63 = u32[2]{0} broadcast(%bitcast.12), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-left.20 = u32[2]{0} shift-left(%xor.23, %broadcast.63), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_left" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %subtract.20 = u32[] subtract(%constant.20, %bitcast.12), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/sub" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.62 = u32[2]{0} broadcast(%subtract.20), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %shift-right-logical.21 = u32[2]{0} shift-right-logical(%xor.23, %broadcast.62), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %or.20 = u32[2]{0} or(%shift-left.20, %shift-right-logical.21), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/or" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.22 = u32[2]{0} xor(%add.55, %or.20), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %add.54 = u32[2]{0} add(%add.55, %xor.22), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_0.4 = u32[] parameter(0)
+  %broadcast.61 = u32[2]{0} broadcast(%param_0.4), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %add.53 = u32[2]{0} add(%add.54, %broadcast.61), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%region_0.105.clone.clone.clone (arg_tuple.4: (s32[], u32[2], u32[2], u32[], u32[], /*index=5*/u32[], u32[4], u32[4])) -> (s32[], u32[2], u32[2], u32[], u32[], /*index=5*/u32[], u32[4], u32[4]) {
+  %arg_tuple.4 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  %get-tuple-element.130 = s32[] get-tuple-element(%arg_tuple.4), index=0
+  %copy.8 = s32[] copy(%get-tuple-element.130)
+  %constant.15 = s32[] constant(1)
+  %add.35 = s32[] add(%copy.8, %constant.15), metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.16 = s32[] copy(%add.35), control-predecessors={%copy.8}
+  %get-tuple-element.131 = u32[2]{0} get-tuple-element(%arg_tuple.4), index=1
+  %copy.9 = u32[2]{0} copy(%get-tuple-element.131)
+  %get-tuple-element.133 = u32[] get-tuple-element(%arg_tuple.4), index=3
+  %copy.11 = u32[] copy(%get-tuple-element.133)
+  %get-tuple-element.136 = u32[4]{0} get-tuple-element(%arg_tuple.4), index=6
+  %copy.14 = u32[4]{0} copy(%get-tuple-element.136)
+  %get-tuple-element.132 = u32[2]{0} get-tuple-element(%arg_tuple.4), index=2
+  %copy.10 = u32[2]{0} copy(%get-tuple-element.132)
+  %broadcast_add_fusion.1 = u32[2]{0} fusion(%copy.11, %copy.14, %copy.10, %copy.9), kind=kLoop, calls=%fused_computation.1, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.17 = u32[2]{0} copy(%broadcast_add_fusion.1), control-predecessors={%copy.9}
+  %get-tuple-element.134 = u32[] get-tuple-element(%arg_tuple.4), index=4
+  %copy.12 = u32[] copy(%get-tuple-element.134)
+  %broadcast_add_fusion = u32[2]{0} fusion(%copy.12, %copy.14, %copy.10, %copy.9, %copy.8), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_threefry_split)/jit(main)/while/body/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.18 = u32[2]{0} copy(%broadcast_add_fusion), control-predecessors={%copy.10}
+  %copy.19 = u32[] copy(%copy.12), control-predecessors={%copy.11}
+  %get-tuple-element.135 = u32[] get-tuple-element(%arg_tuple.4), index=5
+  %copy.13 = u32[] copy(%get-tuple-element.135)
+  %copy.20 = u32[] copy(%copy.13), control-predecessors={%copy.12}
+  %copy.21 = u32[] copy(%copy.11), control-predecessors={%copy.13}
+  %get-tuple-element.137 = u32[4]{0} get-tuple-element(%arg_tuple.4), index=7
+  %copy.15 = u32[4]{0} copy(%get-tuple-element.137)
+  %copy.22 = u32[4]{0} copy(%copy.15), control-predecessors={%copy.14}
+  %copy.23 = u32[4]{0} copy(%copy.14), control-predecessors={%copy.15}
+  ROOT %tuple.12 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(%copy.16, %copy.17, %copy.18, %copy.19, %copy.20, /*index=5*/%copy.21, %copy.22, %copy.23)
+}
+
+%region_1.118.clone.clone (arg_tuple.3: (s32[], u32[2], u32[2], u32[], u32[], /*index=5*/u32[], u32[4], u32[4])) -> pred[] {
+  %arg_tuple.3 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) parameter(0)
+  %get-tuple-element.77 = s32[] get-tuple-element(%arg_tuple.3), index=0
+  %constant.14 = s32[] constant(5)
+  ROOT %compare.1 = pred[] compare(%get-tuple-element.77, %constant.14), direction=LT, metadata={op_name="jit(_threefry_split)/jit(main)/while/cond/lt" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.2 (param_0.6: u32[2], param_1.14: u32[2]) -> u32[2,2] {
+  %param_1.14 = u32[2]{0} parameter(1)
+  %bitcast.16 = u32[2,1]{1,0} bitcast(%param_1.14), metadata={op_name="jit(_threefry_split)/jit(main)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_0.6 = u32[2]{0} parameter(0)
+  %bitcast.15 = u32[2,1]{1,0} bitcast(%param_0.6), metadata={op_name="jit(_threefry_split)/jit(main)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %concatenate.0 = u32[2,2]{1,0} concatenate(%bitcast.16, %bitcast.15), dimensions={1}, metadata={op_name="jit(_threefry_split)/jit(main)/concatenate" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.3 (param_0.10: u32[2]) -> u32[] {
+  %param_0.10 = u32[2]{0} parameter(0)
+  %slice.26 = u32[1]{0} slice(%param_0.10), slice={[0:1]}, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.18 = u32[] bitcast(%slice.26), metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.25 = u32[1]{0} slice(%param_0.10), slice={[1:2]}, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.17 = u32[] bitcast(%slice.25), metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %xor.26 = u32[] xor(%bitcast.18, %bitcast.17), metadata={op_name="jit(_threefry_split)/jit(main)/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %constant.21 = u32[] constant(466688986)
+  ROOT %xor.25 = u32[] xor(%xor.26, %constant.21), metadata={op_name="jit(_threefry_split)/jit(main)/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.4 (param_0.12: u32[2]) -> u32[2] {
+  %iota.0 = u64[2]{0} iota(), iota_dimension=0, metadata={op_name="jit(_threefry_split)/jit(main)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %convert.5 = u32[2]{0} convert(%iota.0), metadata={op_name="jit(_threefry_split)/jit(main)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_0.12 = u32[2]{0} parameter(0)
+  %slice.27 = u32[1]{0} slice(%param_0.12), slice={[1:2]}, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.19 = u32[] bitcast(%slice.27), metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.69 = u32[2]{0} broadcast(%bitcast.19), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %add.59 = u32[2]{0} add(%convert.5, %broadcast.69), metadata={op_name="jit(_threefry_split)/jit(main)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.5 (param_0.14: u32[2]) -> u32[] {
+  %param_0.14 = u32[2]{0} parameter(0)
+  %slice.28 = u32[1]{0} slice(%param_0.14), slice={[1:2]}, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %bitcast.20 = u32[] bitcast(%slice.28), metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.6 (param_0.16: u32[2]) -> u32[2] {
+  %iota.1 = u64[2]{0} iota(), iota_dimension=0, metadata={op_name="jit(_threefry_split)/jit(main)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %constant.22 = u64[] constant(32)
+  %broadcast.72 = u64[2]{0} broadcast(%constant.22), dimensions={}
+  %shift-right-logical.24 = u64[2]{0} shift-right-logical(%iota.1, %broadcast.72), metadata={op_name="jit(_threefry_split)/jit(main)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %convert.6 = u32[2]{0} convert(%shift-right-logical.24), metadata={op_name="jit(_threefry_split)/jit(main)/iota_2x32_shape" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %param_0.16 = u32[2]{0} parameter(0)
+  %slice.29 = u32[1]{0} slice(%param_0.16), slice={[0:1]}, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.21 = u32[] bitcast(%slice.29), metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %broadcast.71 = u32[2]{0} broadcast(%bitcast.21), dimensions={}, metadata={op_name="jit(_threefry_split)/jit(main)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %add.60 = u32[2]{0} add(%convert.6, %broadcast.71), metadata={op_name="jit(_threefry_split)/jit(main)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+%fused_computation.7 (param_0.18: u32[2]) -> u32[] {
+  %param_0.18 = u32[2]{0} parameter(0)
+  %slice.30 = u32[1]{0} slice(%param_0.18), slice={[0:1]}, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %bitcast.22 = u32[] bitcast(%slice.30), metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+
+ENTRY %main.133 (Arg_0.1: u32[2]) -> u32[2,2] {
+  %constant.4 = s32[] constant(0)
+  %copy = s32[] copy(%constant.4)
+  %Arg_0.1 = u32[2]{0} parameter(0), metadata={op_name="key"}
+  %broadcast_add_fusion.3 = u32[2]{0} fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation.6, metadata={op_name="jit(_threefry_split)/jit(main)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.1 = u32[2]{0} copy(%broadcast_add_fusion.3)
+  %broadcast_add_fusion.2 = u32[2]{0} fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation.4, metadata={op_name="jit(_threefry_split)/jit(main)/add" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.2 = u32[2]{0} copy(%broadcast_add_fusion.2)
+  %slice_bitcast_fusion = u32[] fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation.5, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.3 = u32[] copy(%slice_bitcast_fusion)
+  %xor_xor_fusion = u32[] fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation.3, metadata={op_name="jit(_threefry_split)/jit(main)/xor" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.4 = u32[] copy(%xor_xor_fusion)
+  %slice_bitcast_fusion.1 = u32[] fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation.7, metadata={op_name="jit(_threefry_split)/jit(main)/slice" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %copy.5 = u32[] copy(%slice_bitcast_fusion.1)
+  %constant.7 = u32[4]{0} constant({13, 15, 26, 6})
+  %copy.6 = u32[4]{0} copy(%constant.7)
+  %constant.6 = u32[4]{0} constant({17, 29, 16, 24})
+  %copy.7 = u32[4]{0} copy(%constant.6)
+  %tuple.10 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) tuple(%copy, %copy.1, %copy.2, %copy.3, %copy.4, /*index=5*/%copy.5, %copy.6, %copy.7)
+  %while.1 = (s32[], u32[2]{0}, u32[2]{0}, u32[], u32[], /*index=5*/u32[], u32[4]{0}, u32[4]{0}) while(%tuple.10), condition=%region_1.118.clone.clone, body=%region_0.105.clone.clone.clone, metadata={op_name="jit(_threefry_split)/jit(main)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}, backend_config={"known_trip_count":{"n":"5"},"known_init_step":{"init":"0","step":"1"},"known_induction_variable":{"tuple_index":"0"}}
+  %get-tuple-element.124 = u32[2]{0} get-tuple-element(%while.1), index=2, metadata={op_name="jit(_threefry_split)/jit(main)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %get-tuple-element.123 = u32[2]{0} get-tuple-element(%while.1), index=1, metadata={op_name="jit(_threefry_split)/jit(main)/while" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %bitcast_concatenate_fusion = u32[2,2]{1,0} fusion(%get-tuple-element.124, %get-tuple-element.123), kind=kLoop, calls=%fused_computation.2, metadata={op_name="jit(_threefry_split)/jit(main)/concatenate" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+}
+

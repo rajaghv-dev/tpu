@@ -132,9 +132,22 @@ def run(args) -> Dict[str, Any]:
     xprof_dir = out_dir / "xprof"
     xprof_dir.mkdir(parents=True, exist_ok=True)
 
+    # Static identity fields written into every event so the Prometheus
+    # exporter's safe-label set is populated (framework / tpu_version /
+    # workload_name / run_mode). Without these the exporter falls back to
+    # "cpu_sim" defaults — wrong for real-TPU runs.
+    _identity = {
+        "workload_name": f"real_{args.workload}",
+        "framework": "jax",
+        "tpu_version": args.tpu_version,
+        "run_mode": "cloud_tpu_vm",
+    }
+
     def emit(layer: str, event: str, **fields: Any) -> None:
         # Caller may override the trace (e.g. per-step trace via with_step()).
         t = fields.pop("trace", trace)
+        for k, v in _identity.items():
+            fields.setdefault(k, v)
         log.log(layer=layer, event=event, trace=t, **fields)
 
     # ── Banner ──────────────────────────────────────────────────────────────
@@ -155,10 +168,21 @@ def run(args) -> Dict[str, Any]:
          devices=[str(d) for d in devices], n_devices=len(devices),
          workload=args.workload)
 
+    def _hbm_event_fields(stats: Dict[str, Any]) -> Dict[str, Any]:
+        # Flatten the HBM stats dict into the field names the metrics
+        # exporter expects (hbm_used_bytes / hbm_capacity_bytes / etc.).
+        return {
+            "hbm_used_bytes": int(stats.get("used_bytes", 0)),
+            "hbm_capacity_bytes": int(stats.get("capacity_bytes", 0)),
+            "hbm_utilization_ratio": float(stats.get("utilization", 0.0)),
+            "hbm_peak_bytes": int(stats.get("peak_bytes", 0)),
+            "oom_events": int(stats.get("oom_events", 0)),
+        }
+
     # ── HBM snapshot AFTER init ─────────────────────────────────────────────
     hbm_post_init = _hbm_stats_or_empty()
     emit("hbm", "hbm.snapshot", message="post-init", phase="post_init",
-         metrics=hbm_post_init)
+         metrics=hbm_post_init, **_hbm_event_fields(hbm_post_init))
 
     # ── Build workload + state ──────────────────────────────────────────────
     builder = _BUILDERS[args.workload]
@@ -197,7 +221,8 @@ def run(args) -> Dict[str, Any]:
 
         hbm_post_compile = _hbm_stats_or_empty()
         emit("hbm", "hbm.snapshot", message="post-compile",
-             phase="post_compile", metrics=hbm_post_compile)
+             phase="post_compile", metrics=hbm_post_compile,
+             **_hbm_event_fields(hbm_post_compile))
 
         compile_time_s = compile_step_s
         pt.add_event("xla.compile", "compile", dur_s=compile_time_s, tid=0,
@@ -206,9 +231,15 @@ def run(args) -> Dict[str, Any]:
         pt.add_event("step.0", "device", dur_s=compile_step_s, tid=2,
                      args={"step": 0, "trace_id": step_trace.trace_id,
                            "step_id": step_trace.step_id})
-        emit("runtime", "train.step", trace=step_trace,
+        emit("xla", "xla.compile", trace=step_trace,
+             compile_time_s=compile_time_s, cache_hit=False,
+             executable_id=trace.executable_id)
+        emit("runtime", "runtime.step", trace=step_trace,
              step=0, step_id=step_trace.step_id,
-             step_time_s=compile_step_s, samples_per_step=samples_per_step,
+             step_time_s=compile_step_s,
+             device_execution_time_s=compile_step_s,
+             samples_per_step=samples_per_step,
+             samples_per_second=samples_per_step / max(compile_step_s, 1e-9),
              compile_step=True,
              loss=float(loss) if hasattr(loss, "__float__") else None)
         metrics.record(
@@ -234,9 +265,12 @@ def run(args) -> Dict[str, Any]:
             pt.add_event(f"step.{step}", "device", dur_s=dt, tid=2,
                          args={"step": step, "trace_id": step_trace.trace_id,
                                "step_id": step_trace.step_id})
-            emit("runtime", "train.step", trace=step_trace,
+            emit("runtime", "runtime.step", trace=step_trace,
                  step=step, step_id=step_trace.step_id,
-                 step_time_s=dt, samples_per_step=samples_per_step,
+                 step_time_s=dt,
+                 device_execution_time_s=dt,
+                 samples_per_step=samples_per_step,
+                 samples_per_second=samples_per_step / max(dt, 1e-9),
                  loss=float(loss) if hasattr(loss, "__float__") else None)
             metrics.record(
                 step=step,
@@ -258,7 +292,7 @@ def run(args) -> Dict[str, Any]:
 
     hbm_post_final = _hbm_stats_or_empty()
     emit("hbm", "hbm.snapshot", message="post-final", phase="post_final",
-         metrics=hbm_post_final)
+         metrics=hbm_post_final, **_hbm_event_fields(hbm_post_final))
 
     # ── Cost (median steady-state step) ─────────────────────────────────────
     steady = sorted(step_durations[1:]) if len(step_durations) > 1 else step_durations

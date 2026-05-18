@@ -1,0 +1,70 @@
+BufferAssignment:
+allocation 0: size 512, output shape is |(u32[2], u32[2])|, maybe-live-out:
+ value: <8 tuple.6{} @0> (size=512,offset=0): (u32[2]{0:T(128)}, u32[2]{0:T(128)})
+allocation 1: size 1024, parameter 0, shape |u32[2,2]| at ShapeIndex {}:
+ value: <4 Arg_0.1 @0> (size=1024,offset=0): u32[2,2]{1,0:T(2,128)}
+allocation 2: size 512, maybe-live-out:
+ value: <6 slice_bitcast_fusion{0} @0> (size=512,offset=0): u32[2]{0:T(128)}
+allocation 3: size 512, maybe-live-out:
+ value: <7 slice_bitcast_fusion{1} @0> (size=512,offset=0): u32[2]{0:T(128)}
+allocation 4: size 0, color 1, preallocated-temp:
+allocation 5: size 512, preallocated-temp:
+ value: <5 slice_bitcast_fusion{} @0> (size=512,offset=0): (u32[2]{0:T(128)}, u32[2]{0:T(128)})
+
+Total bytes used: 3072 (3.0KiB)
+
+Used values:
+<4 Arg_0.1 @0>
+ positions:
+  Arg_0.1
+ uses:
+  slice_bitcast_fusion, operand 0
+ from instruction: %Arg_0.1 = u32[2,2]{1,0:T(2,128)} parameter(0), metadata={op_name="x"}
+<5 slice_bitcast_fusion{} @0>
+ positions:
+  slice_bitcast_fusion {}
+ uses:
+  get-tuple-element, operand 0 {}
+  get-tuple-element.1, operand 0 {}
+ from instruction: %slice_bitcast_fusion = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+<6 slice_bitcast_fusion{0} @0>
+ positions:
+  slice_bitcast_fusion {0}
+  tuple.6 {1}
+  get-tuple-element
+ uses:
+  tuple.6, operand 1
+ from instruction: %slice_bitcast_fusion = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+<7 slice_bitcast_fusion{1} @0>
+ positions:
+  slice_bitcast_fusion {1}
+  tuple.6 {0}
+  get-tuple-element.1
+ uses:
+  tuple.6, operand 0
+ from instruction: %slice_bitcast_fusion = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+<8 tuple.6{} @0>
+ positions:
+  tuple.6 {}
+ uses:
+ from instruction: %tuple.6 = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) tuple(%get-tuple-element.1, %get-tuple-element)
+
+
+HloLiveRange (max 5):
+  InstructionSequence:
+    0:Arg_0.1
+    1:slice_bitcast_fusion
+    2:get-tuple-element.1
+    3:get-tuple-element
+    4:tuple.6
+  BufferLiveRange:
+    Arg_0.1{}:0-5
+    slice_bitcast_fusion{}:1-3
+    slice_bitcast_fusion{0}:1-5
+    slice_bitcast_fusion{1}:1-5
+    tuple.6{}:4-5
+  Live ranges at 4 (peak):
+    Arg_0.1{}: 16 bytes (cumulative: 16 bytes)
+    tuple.6{}: 16 bytes (cumulative: 32 bytes)
+    slice_bitcast_fusion{0}: 8 bytes (cumulative: 40 bytes)
+    slice_bitcast_fusion{1}: 8 bytes (cumulative: 48 bytes)

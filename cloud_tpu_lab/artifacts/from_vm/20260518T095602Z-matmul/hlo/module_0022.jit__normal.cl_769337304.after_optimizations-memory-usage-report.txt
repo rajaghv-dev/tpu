@@ -1,0 +1,40 @@
+Total bytes used: 569344 (556.0KiB)
+
+Allocations sorted by size:
+
+cumulative_size; total_size - cumulative_size; allocation
+------------------------------------------------------------------------------
+  512.0KiB( 92%);    44.0KiB; allocation 1: size 512.0KiB, output shape is |bf16[512,512]|, maybe-live-out:
+  544.5KiB( 98%);    11.5KiB; allocation 3: size 32.5KiB, preallocated-temp:
+  554.5KiB(100%);     1.5KiB; allocation 4: size 10.0KiB, color 1, preallocated-temp:
+  555.0KiB(100%);     1.0KiB; allocation 0: size 512B, constant:
+  555.5KiB(100%);       512B; allocation 2: size 512B, parameter 0, shape |u32[2]| at ShapeIndex {}:
+  556.0KiB(100%);         0B; allocation 5: size 512B, color 6, preallocated-temp:
+
+
+Allocations sorted by size with their values:
+allocation 1: size 512.0KiB, output shape is |bf16[512,512]|, maybe-live-out:
+allocation 3: size 32.5KiB, preallocated-temp:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	     512B( 33%);       512B;            0;                1; (u32[1], u32[1])
+	   1.0KiB( 67%);       512B;        16384;                1; u32[1]
+	   1.5KiB(100%);       512B;        32768;                1; u32[1]
+
+allocation 4: size 10.0KiB, color 1, preallocated-temp:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	   2.0KiB( 33%);     2.0KiB;            0;                1; u32[512]
+	   4.0KiB( 67%);     2.0KiB;         8192;                1; u32[512]
+	   6.0KiB(100%);     2.0KiB;         4096;                1; u32[512]
+
+allocation 0: size 512B, constant:
+allocation 2: size 512B, parameter 0, shape |u32[2]| at ShapeIndex {}:
+allocation 5: size 512B, color 6, preallocated-temp:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	     512B(100%);       512B;            0;                2; 2×u32[]
+

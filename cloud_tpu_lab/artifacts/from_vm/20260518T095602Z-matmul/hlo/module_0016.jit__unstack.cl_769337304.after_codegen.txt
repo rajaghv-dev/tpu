@@ -1,0 +1,19 @@
+HloModule jit__unstack, is_scheduled=true, entry_computation_layout={(u32[2,2]{1,0:T(2,128)})->(u32[2]{0:T(128)}, u32[2]{0:T(128)})}, allow_spmd_sharding_propagation_to_parameters={true}, allow_spmd_sharding_propagation_to_output={true,true}
+
+%fused_computation (param_0.1: u32[2,2]) -> (u32[2], u32[2]) {
+  %param_0.1 = u32[2,2]{1,0:T(2,128)} parameter(0)
+  %slice.0 = u32[1,2]{1,0:T(1,128)} slice(%param_0.1), slice={[1:2], [0:2]}, metadata={op_name="jit(_unstack)/jit(main)/split" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.2 = u32[2]{0:T(128)} bitcast(%slice.0), metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %slice.1.clone.1 = u32[1,2]{1,0:T(1,128)} slice(%param_0.1), slice={[0:1], [0:2]}, metadata={op_name="jit(_unstack)/jit(main)/split" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %bitcast.3.clone.1 = u32[2]{0:T(128)} bitcast(%slice.1.clone.1), metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %tuple = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) tuple(%bitcast.2, %bitcast.3.clone.1)
+}
+
+ENTRY %main.7 (Arg_0.1: u32[2,2]) -> (u32[2], u32[2]) {
+  %Arg_0.1 = u32[2,2]{1,0:T(2,128)} parameter(0), metadata={op_name="x"}
+  %slice_bitcast_fusion = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}, backend_config={"flag_configs":[],"window_config":{"kernel_window_bounds":[],"output_window_bounds":["1"],"input_window_bounds":[],"estimated_cycles":"1831","iteration_bounds":["1"]},"scoped_memory_configs":[],"used_scoped_memory_configs":[{"memory_space":"1","offset":"0","size":"4096"}],"retry_config":{"retry_count":"0"}}
+  %get-tuple-element.1 = u32[2]{0:T(128)} get-tuple-element(%slice_bitcast_fusion), index=1, metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  %get-tuple-element = u32[2]{0:T(128)} get-tuple-element(%slice_bitcast_fusion), index=0, metadata={op_name="jit(_unstack)/jit(main)/squeeze" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+  ROOT %tuple.6 = (u32[2]{0:T(128)}, u32[2]{0:T(128)}) tuple(%get-tuple-element.1, %get-tuple-element)
+}
+

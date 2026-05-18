@@ -1,0 +1,18 @@
+HloModule jit__threefry_seed, is_scheduled=true, entry_computation_layout={(s32[])->u32[2]{0}}, allow_spmd_sharding_propagation_to_parameters={true}, allow_spmd_sharding_propagation_to_output={true}
+
+%fused_computation (param_0.1: s32[]) -> u32[2] {
+  %param_0.1 = s32[] parameter(0)
+  %constant.0 = s32[] constant(32)
+  %shift-right-logical.0 = s32[] shift-right-logical(%param_0.1, %constant.0), metadata={op_name="jit(_threefry_seed)/jit(main)/shift_right_logical" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+  %convert.1 = u32[] convert(%shift-right-logical.0), metadata={op_name="jit(_threefry_seed)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+  %bitcast.3 = u32[1]{0} bitcast(%convert.1), metadata={op_name="jit(_threefry_seed)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+  %convert.0 = u32[] convert(%param_0.1), metadata={op_name="jit(_threefry_seed)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+  %bitcast.2 = u32[1]{0} bitcast(%convert.0), metadata={op_name="jit(_threefry_seed)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+  ROOT %concatenate.0 = u32[2]{0} concatenate(%bitcast.3, %bitcast.2), dimensions={0}, metadata={op_name="jit(_threefry_seed)/jit(main)/concatenate" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+}
+
+ENTRY %main.9 (Arg_0.1: s32[]) -> u32[2] {
+  %Arg_0.1 = s32[] parameter(0), metadata={op_name="seed"}
+  ROOT %bitcast_concatenate_fusion = u32[2]{0} fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_threefry_seed)/jit(main)/concatenate" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=164}
+}
+

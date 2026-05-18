@@ -1,0 +1,21 @@
+Total bytes used: 2097668 (2.00MiB)
+
+Allocations sorted by size:
+
+cumulative_size; total_size - cumulative_size; allocation
+------------------------------------------------------------------------------
+  512.0KiB( 25%);    1.50MiB; allocation 0: size 512.0KiB, parameter 1, shape |bf16[512,512]| at ShapeIndex {}:
+   1.00MiB( 50%);    1.00MiB; allocation 1: size 512.0KiB, output shape is |bf16[512,512]|, maybe-live-out:
+   1.50MiB( 75%);   512.5KiB; allocation 2: size 512.0KiB, parameter 0, shape |bf16[512,512]| at ShapeIndex {}:
+   2.00MiB(100%);       516B; allocation 3: size 512.0KiB, color 1, preallocated-temp:
+   2.00MiB(100%);         4B; allocation 4: size 512B, preallocated-temp:
+   2.00MiB(100%);         0B; allocation 5: size 4B, color 2, preallocated-temp:
+
+
+Allocations sorted by size with their values:
+allocation 0: size 512.0KiB, parameter 1, shape |bf16[512,512]| at ShapeIndex {}:
+allocation 1: size 512.0KiB, output shape is |bf16[512,512]|, maybe-live-out:
+allocation 2: size 512.0KiB, parameter 0, shape |bf16[512,512]| at ShapeIndex {}:
+allocation 3: size 512.0KiB, color 1, preallocated-temp:
+allocation 4: size 512B, preallocated-temp:
+allocation 5: size 4B, color 2, preallocated-temp:

@@ -1,0 +1,122 @@
+BufferAssignment:
+allocation 0: size 524288, parameter 0, shape |bf16[512,512]| at ShapeIndex {}:
+ value: <12 Arg_0.1 @0> (size=524288,offset=0): bf16[512,512]{1,0}
+allocation 1: size 4, constant:
+ value: <13 constant.2 @0> (size=4,offset=0): f32[]
+allocation 2: size 2, output shape is |bf16[]|, maybe-live-out:
+ value: <14 reduce_convert_fusion @0> (size=2,offset=0): bf16[]
+allocation 3: size 4, thread-local:
+ value: <5 add.0 @0> (size=4,offset=0): f32[]
+allocation 4: size 4, thread-local:
+ value: <0 Arg_0.4 @0> (size=4,offset=0): f32[]
+allocation 5: size 4, thread-local:
+ value: <1 Arg_1.5 @0> (size=4,offset=0): f32[]
+allocation 6: size 4, thread-local:
+ value: <2 add.6 @0> (size=4,offset=0): f32[]
+allocation 7: size 4, thread-local:
+ value: <3 Arg_0.0 @0> (size=4,offset=0): f32[]
+allocation 8: size 4, thread-local:
+ value: <4 Arg_1.0 @0> (size=4,offset=0): f32[]
+allocation 9: size 1049600, preallocated-temp:
+ value: <10 convert.3.clone @0> (size=1048576,offset=0): f32[512,512]{1,0}
+ value: <11 reduce-window.clone @0> (size=1024,offset=1048576): f32[16,16]{1,0}
+
+Total bytes used: 1573918 (1.50MiB)
+
+Used values:
+<0 Arg_0.4 @0>
+ positions:
+  Arg_0.4
+ uses:
+  add.6, operand 0
+ from instruction: %Arg_0.4 = f32[] parameter(0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+<1 Arg_1.5 @0>
+ positions:
+  Arg_1.5
+ uses:
+  add.6, operand 1
+ from instruction: %Arg_1.5 = f32[] parameter(1), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+<2 add.6 @0>
+ positions:
+  add.6
+ uses:
+ from instruction: %add.6 = f32[] add(%Arg_0.4, %Arg_1.5), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+<3 Arg_0.0 @0>
+ positions:
+  Arg_0.0
+ uses:
+  add.0, operand 0
+ from instruction: %Arg_0.0 = f32[] parameter(0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+<4 Arg_1.0 @0>
+ positions:
+  Arg_1.0
+ uses:
+  add.0, operand 1
+ from instruction: %Arg_1.0 = f32[] parameter(1), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum"}
+<5 add.0 @0>
+ positions:
+  add.0
+ uses:
+ from instruction: %add.0 = f32[] add(%Arg_0.0, %Arg_1.0), metadata={op_name="jit(_reduce_sum)/jit(main)/reduce_sum" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+<10 convert.3.clone @0>
+ positions:
+  convert.3.clone
+  call
+  p.1
+ uses:
+  call.1, operand 0
+  reduce-window.clone, operand 0
+ from instruction: %convert.3.clone = f32[512,512]{1,0} convert(%p), metadata={op_name="jit(_reduce_sum)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}, backend_config={"outer_dimension_partitions":["5"]}
+<11 reduce-window.clone @0>
+ positions:
+  reduce-window.clone
+  call.1
+ uses:
+  reduce_convert_fusion, operand 0
+ from instruction: %reduce-window.clone = f32[16,16]{1,0} reduce-window(%p.1, %p.2), window={size=32x32 stride=32x32}, to_apply=%region_0.7, backend_config={"outer_dimension_partitions":["4"]}
+<12 Arg_0.1 @0>
+ positions:
+  Arg_0.1
+  p
+ uses:
+  call, operand 0
+  convert.3.clone, operand 0
+ from instruction: %Arg_0.1 = bf16[512,512]{1,0} parameter(0), metadata={op_name="a"}
+<13 constant.2 @0>
+ positions:
+  constant.2
+  p.2
+ uses:
+  call.1, operand 1
+  reduce-window.clone, operand 1
+ from instruction: %constant.2 = f32[] constant(0)
+<14 reduce_convert_fusion @0>
+ positions:
+  reduce_convert_fusion
+ uses:
+ from instruction: %reduce_convert_fusion = bf16[] fusion(%call.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_reduce_sum)/jit(main)/convert_element_type" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=105}
+
+
+HloLiveRange (max 10):
+  InstructionSequence:
+    0:Arg_0.1
+    1:constant.2
+    2:p
+    3:convert.3.clone
+    4:call
+    5:p.1
+    6:p.2
+    7:reduce-window.clone
+    8:call.1
+    9:reduce_convert_fusion
+  BufferLiveRange:
+    convert.3.clone{}:3-7
+    reduce-window.clone{}:7-9
+    Arg_0.1{}:0-10
+    constant.2{}:1-7
+    reduce_convert_fusion{}:9-10
+  Live ranges at 7 (peak):
+    convert.3.clone{}: 1048576 bytes (cumulative: 1048576 bytes)
+    Arg_0.1{}: 524288 bytes (cumulative: 1572864 bytes)
+    reduce-window.clone{}: 1024 bytes (cumulative: 1573888 bytes)
+    constant.2{}: 4 bytes (cumulative: 1573892 bytes)

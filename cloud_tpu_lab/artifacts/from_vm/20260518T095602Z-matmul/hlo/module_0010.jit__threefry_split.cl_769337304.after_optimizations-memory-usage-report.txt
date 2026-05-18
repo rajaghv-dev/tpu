@@ -1,0 +1,43 @@
+Total bytes used: 24576 (24.0KiB)
+
+Allocations sorted by size:
+
+cumulative_size; total_size - cumulative_size; allocation
+------------------------------------------------------------------------------
+   16.5KiB( 69%);     7.5KiB; allocation 3: size 16.5KiB, preallocated-temp:
+   21.5KiB( 90%);     2.5KiB; allocation 4: size 5.0KiB, color 1, preallocated-temp:
+   22.5KiB( 94%);     1.5KiB; allocation 1: size 1.0KiB, output shape is |u32[2,2]|, maybe-live-out:
+   23.0KiB( 96%);     1.0KiB; allocation 0: size 512B, constant:
+   23.5KiB( 98%);       512B; allocation 2: size 512B, parameter 0, shape |u32[2]| at ShapeIndex {}:
+   24.0KiB(100%);         0B; allocation 5: size 512B, color 6, preallocated-temp:
+
+
+Allocations sorted by size with their values:
+allocation 3: size 16.5KiB, preallocated-temp:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	     512B( 50%);       512B;            0;                1; (u32[1], u32[1])
+	   1.0KiB(100%);       512B;        16384;                1; u32[1]
+
+allocation 4: size 5.0KiB, color 1, preallocated-temp:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	   1.0KiB( 50%);     1.0KiB;            0;                1; u32[2,1]
+	   2.0KiB(100%);     1.0KiB;         4096;                1; u32[2,1]
+
+allocation 1: size 1.0KiB, output shape is |u32[2,2]|, maybe-live-out:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	   1.0KiB(100%);     1.0KiB;            0;                2; u32[2,2], u32[1]
+
+allocation 0: size 512B, constant:
+allocation 2: size 512B, parameter 0, shape |u32[2]| at ShapeIndex {}:
+allocation 5: size 512B, color 6, preallocated-temp:
+
+	cumulative_size;       size;       offset; used_by_n_values; shapes_list
+	------------------------------------------------------------
+	     512B(100%);       512B;            0;                2; 2×u32[]
+

@@ -1,0 +1,57 @@
+BufferAssignment:
+allocation 0: size 16, output shape is |(u32[2], u32[2])|, maybe-live-out:
+ value: <7 tuple.6{} @0> (size=16,offset=0): (u32[2]{0}, u32[2]{0})
+allocation 1: size 16, parameter 0, shape |u32[2,2]| at ShapeIndex {}:
+ value: <4 Arg_0.1 @0> (size=16,offset=0): u32[2,2]{1,0}
+allocation 2: size 8, maybe-live-out:
+ value: <5 slice_bitcast_fusion.1 @0> (size=8,offset=0): u32[2]{0}
+allocation 3: size 8, maybe-live-out:
+ value: <6 slice_bitcast_fusion @0> (size=8,offset=0): u32[2]{0}
+
+Total bytes used: 48 (48B)
+
+Used values:
+<4 Arg_0.1 @0>
+ positions:
+  Arg_0.1
+ uses:
+  slice_bitcast_fusion.1, operand 0
+  slice_bitcast_fusion, operand 0
+ from instruction: %Arg_0.1 = u32[2,2]{1,0} parameter(0), metadata={op_name="x"}
+<5 slice_bitcast_fusion.1 @0>
+ positions:
+  slice_bitcast_fusion.1
+  tuple.6 {0}
+ uses:
+  tuple.6, operand 0
+ from instruction: %slice_bitcast_fusion.1 = u32[2]{0} fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation.1, metadata={op_name="jit(_unstack)/jit(main)/split" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+<6 slice_bitcast_fusion @0>
+ positions:
+  slice_bitcast_fusion
+  tuple.6 {1}
+ uses:
+  tuple.6, operand 1
+ from instruction: %slice_bitcast_fusion = u32[2]{0} fusion(%Arg_0.1), kind=kLoop, calls=%fused_computation, metadata={op_name="jit(_unstack)/jit(main)/split" source_file="/home/rajaghv/cloud_tpu_lab/examples/run_jax_real_tpu.py" source_line=96}
+<7 tuple.6{} @0>
+ positions:
+  tuple.6 {}
+ uses:
+ from instruction: %tuple.6 = (u32[2]{0}, u32[2]{0}) tuple(%slice_bitcast_fusion.1, %slice_bitcast_fusion)
+
+
+HloLiveRange (max 4):
+  InstructionSequence:
+    0:Arg_0.1
+    1:slice_bitcast_fusion.1
+    2:slice_bitcast_fusion
+    3:tuple.6
+  BufferLiveRange:
+    Arg_0.1{}:0-4
+    slice_bitcast_fusion.1{}:1-4
+    slice_bitcast_fusion{}:2-4
+    tuple.6{}:3-4
+  Live ranges at 3 (peak):
+    Arg_0.1{}: 16 bytes (cumulative: 16 bytes)
+    tuple.6{}: 16 bytes (cumulative: 32 bytes)
+    slice_bitcast_fusion{}: 8 bytes (cumulative: 40 bytes)
+    slice_bitcast_fusion.1{}: 8 bytes (cumulative: 48 bytes)
