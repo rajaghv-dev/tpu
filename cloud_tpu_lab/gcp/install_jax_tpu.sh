@@ -41,8 +41,9 @@ echo "[remote] python: \$(python3 --version)"
 python3 -m pip install --upgrade pip
 echo "[remote] uninstalling any pre-existing jax / libtpu in user-site ..."
 python3 -m pip uninstall -y jax jaxlib libtpu libtpu-nightly 2>/dev/null || true
-echo "[remote] installing ${JAX_SPEC} (force-reinstall to override any newer install) ..."
-python3 -m pip install --upgrade --force-reinstall "${JAX_SPEC}"
+echo "[remote] installing ${JAX_SPEC} (with legacy libtpu_releases.html for the 0.4.x extras) ..."
+python3 -m pip install --upgrade --force-reinstall "${JAX_SPEC}" \\
+    -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 # Companion packages pinned to versions that DO NOT pull a newer jax as a dep.
 # Bump these together with JAX_VERSION when you upgrade.
 python3 -m pip install \\
