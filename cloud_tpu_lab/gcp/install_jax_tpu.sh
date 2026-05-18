@@ -17,14 +17,14 @@ source "$SCRIPT_DIR/_env.sh"
 
 log() { printf '[install_jax_tpu] %s\n' "$*"; }
 
-# Pin JAX to match the libtpu BAKED into the tpu-ubuntu2204-base image.
-# That image ships libtpu_nightly_20241002 (Oct 2024) → JAX 0.4.34 era.
-# Newer JAX (0.6.x) emits StableHLO 1.9.x which the image libtpu (1.7.x)
-# can't parse — fails at first jit'd op. Pip can't replace the image
-# libtpu without root, so we downgrade JAX instead.
+# Install latest jax[tpu] including the matching libtpu wheel via the
+# legacy libtpu_releases.html URL (still authoritative for TPU libtpu wheels
+# as of 2026). Pinning is intentionally NOT used by default — user-site
+# libtpu wins Python's import path, so a fresh wheel + fresh jax pair
+# overrides whatever the image baked in.
 #
-# Override JAX_VERSION when you switch to a newer TPU image runtime.
-JAX_VERSION="${JAX_VERSION:-0.4.34}"
+# Override JAX_VERSION (e.g. "==0.4.34") to pin if you know what you're doing.
+JAX_VERSION="${JAX_VERSION:-}"
 
 log "installing JAX[tpu]${JAX_VERSION:+==$JAX_VERSION} + flax + optax + transformers on $TPU_NAME ..."
 
@@ -32,36 +32,41 @@ log "installing JAX[tpu]${JAX_VERSION:+==$JAX_VERSION} + flax + optax + transfor
 # pre-installed JAX in the system / user site that pip won't otherwise
 # downgrade or replace. We uninstall jax/jaxlib/libtpu explicitly, then
 # pip install --force-reinstall to get a clean matched set.
-JAX_PIN="${JAX_VERSION}"   # always set (default 0.4.34 above)
+JAX_SPEC="jax[tpu]${JAX_VERSION:+==${JAX_VERSION}}"
 
 REMOTE_CMD=$(cat <<EOF
 set -euo pipefail
 echo "[remote] python: \$(python3 --version)"
 python3 -m pip install --upgrade pip
-# IMPORTANT: do NOT uninstall the system libtpu — the tpu-ubuntu2204-base image
-# ships it and pip can't reinstall it without root. We only touch jax/jaxlib
-# in user-site so they match the system libtpu.
-echo "[remote] uninstalling user-site jax / jaxlib (leaving system libtpu alone) ..."
-python3 -m pip uninstall -y jax jaxlib 2>/dev/null || true
-echo "[remote] installing jax==${JAX_PIN} jaxlib==${JAX_PIN} from PyPI ..."
-python3 -m pip install --upgrade --force-reinstall \\
-    "jax==${JAX_PIN}" "jaxlib==${JAX_PIN}"
-# Companion packages pinned to versions compatible with jax ${JAX_PIN}.
-python3 -m pip install --upgrade --force-reinstall \\
-    "flax==0.9.0" "optax==0.2.3" "transformers==4.44.2"
+echo "[remote] uninstalling jax/jaxlib/libtpu (force a clean reinstall) ..."
+python3 -m pip uninstall -y jax jaxlib libtpu libtpu-nightly 2>/dev/null || true
+echo "[remote] installing ${JAX_SPEC} via libtpu_releases.html ..."
+python3 -m pip install --upgrade --force-reinstall "${JAX_SPEC}" \\
+    -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 python3 -m pip install --upgrade tensorboard tensorboard-plugin-profile
 echo "[remote] ───── verifying ───────────────────────────────────────────────"
 python3 -c "import sys; print('python   :', sys.executable)"
 python3 -c "import jax, jaxlib; print('jax      :', jax.__version__); print('jaxlib   :', jaxlib.__version__)"
-python3 -c "import jax; print('devices  :', jax.devices()); print('backend  :', jax.default_backend())" || {
-    echo "[remote] jax.devices() failed — printing diagnostics:"
-    python3 -m pip show jax jaxlib 2>&1 | grep -E "Name|Version|Location" || true
-    find /usr -name libtpu.so 2>/dev/null | head -3 || true
-    find ~/.local -name libtpu.so 2>/dev/null | head -3 || true
-    exit 1
+python3 -c "
+import sys, jax
+backend = jax.default_backend()
+devs = jax.devices()
+print('devices  :', devs)
+print('backend  :', backend)
+if backend != 'tpu':
+    print('[remote] ERROR: backend is', backend, '— expected tpu. libtpu not loadable by this jax.', file=sys.stderr)
+    sys.exit(2)
+" || {
+    rc=\$?
+    echo "[remote] jax verification failed (rc=\$rc) — printing diagnostics:"
+    python3 -m pip show jax jaxlib libtpu libtpu-nightly 2>&1 | grep -E "Name|Version|Location" || true
+    echo "[remote] system libtpu.so candidates:"
+    find /usr -name "libtpu.so*" 2>/dev/null | head -3 || true
+    find ~/.local -name "libtpu.so*" 2>/dev/null | head -3 || true
+    exit \$rc
 }
 python3 -c "import tensorboard_plugin_profile; print('tb-profile OK')"
-echo "[remote] ───── install OK ──────────────────────────────────────────────"
+echo "[remote] ───── install OK — jax sees TPU ─────────────────────────────"
 EOF
 )
 

@@ -133,7 +133,9 @@ def run(args) -> Dict[str, Any]:
     xprof_dir.mkdir(parents=True, exist_ok=True)
 
     def emit(layer: str, event: str, **fields: Any) -> None:
-        log.log(layer=layer, event=event, trace=trace, **fields)
+        # Caller may override the trace (e.g. per-step trace via with_step()).
+        t = fields.pop("trace", trace)
+        log.log(layer=layer, event=event, trace=t, **fields)
 
     # ── Banner ──────────────────────────────────────────────────────────────
     backend = jax.default_backend()
