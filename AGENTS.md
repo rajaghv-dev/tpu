@@ -49,10 +49,10 @@ cd cloud_tpu_lab && pip install -e .
 
 ```bash
 # Root tests (no GPU/TPU needed):
-python3 -m pytest tests/ -q
+python3 -m pytest tests/ -q   # 269 passed, 0 failed, 6 skipped
 
 # cloud_tpu_lab tests:
-cd cloud_tpu_lab && python3 -m pytest tests/ -q
+cd cloud_tpu_lab && python3 -m pytest tests/ -q   # requires: pip install -e .
 
 # With coverage:
 python3 -m pytest tests/ --cov=benchmarks --cov=observe --cov=train -q
@@ -103,14 +103,14 @@ python3 -c "from observe.lineage import get_git_sha; print(get_git_sha())"
 ## Known risks
 
 - `transformers>=4.40,<4.45` pin — Flax model classes removed in 4.45+; do not lift without migrating harness
-- `observe/otel.py` eagerly imports opentelemetry even when disabled — causes 17 test failures in envs without OTel
-- `requirements.stage1.lock.txt` is stale — missing opentelemetry, frozen 2026-04-29
+- `observe/otel.py` lazy-import fix applied (2026-05-16) — 0 test failures; opentelemetry now in requirements.stage1.lock.txt
+- `requirements.stage1.lock.txt` regenerated 2026-05-16 with 24 packages including opentelemetry
 - `scripts/30_deploy_repo.sh` does not exclude .claude/ from deployment tarball
 
 ## Current TODOs
 
-1. Fix observe/otel.py eager import (→ 17 test failures fixed)
-2. Regenerate requirements.stage1.lock.txt
+1. ✅ Fixed observe/otel.py eager import — 269 passed, 0 failed, 6 skipped (2026-05-16)
+2. ✅ Regenerated requirements.stage1.lock.txt — 24 packages including opentelemetry (2026-05-16)
 3. Create LICENSE, CONTRIBUTING.md, .env.example
 4. Add 4 undocumented probes to docs (DeterminismProbe, DeviceInfoProbe, PowerThermalProbe, XlaCompileProbe)
 5. Fix Makefile: python → python3
@@ -119,7 +119,6 @@ python3 -c "from observe.lineage import get_git_sha; print(get_git_sha())"
 
 ## Next recommended tasks
 
-1. Fix observe/otel.py → run full test suite → confirm 0 failures
-2. Create missing root files (LICENSE, CONTRIBUTING.md, .env.example)
-3. Update observe/README.md with 4 new probes
-4. Start Stage 2: add observe/system_monitor.py for GPU SM% / MXU% eager counters
+1. Create missing root files (LICENSE, CONTRIBUTING.md, .env.example)
+2. Update observe/README.md with 4 new probes
+3. Start Stage 2: add observe/system_monitor.py for GPU SM% / MXU% eager counters

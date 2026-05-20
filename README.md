@@ -522,7 +522,7 @@ tpu/                                  (github.com/rajaghv-dev/tpu)
 │       └── grafana/                  ✅ Importable dashboards (roofline · mxu_heatmap ·
 │                                        latency_violins · failures · cost · README)
 │
-├── tests/                            ✅ 272 unit tests (265 passing, no JAX/GPU required)
+├── tests/                            ✅ 272 unit tests (269 passing, 6 skipped, 0 failures — no JAX/GPU required)
 │   ├── conftest.py
 │   ├── test_stats.py
 │   ├── test_lineage.py
@@ -555,7 +555,7 @@ tpu/                                  (github.com/rajaghv-dev/tpu)
 │   ├── 31_install_deps.sh            pip install jax[tpu] + transformers
 │   ├── 32_mount_gcs.sh               gcsfuse + HF_HOME + JAX_COMPILATION_CACHE_DIR
 │   ├── 40_verify_jax.sh              Confirm jax.devices() shows TPU
-│   ├── 41_run_pytests.sh             pytest tests/ on VM (~180 tests)
+│   ├── 41_run_pytests.sh             pytest tests/ on VM (272 tests; 269 pass, 6 skip, 0 fail)
 │   ├── 42_dry_run.sh                 Harness --dry-run plan
 │   ├── 50_run_smoke.sh               Smoke suite (1 model, ~8 min, tmux)
 │   ├── 51_run_quick.sh               Quick suite (5 models, ~50 min, tmux)

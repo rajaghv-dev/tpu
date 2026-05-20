@@ -47,15 +47,15 @@ docs/agent-handoff.md               ← Phase 13 (this file)
 
 ## What was validated
 
-- `python3 -m pytest tests/ -q` baseline: 255 pass, 17 fail, 3 skip
-- All 17 failures: `ModuleNotFoundError: No module named 'opentelemetry'` in observe/otel.py
-- `python3 -m benchmarks.harness --suite quick --device cpu --dry-run` — not yet run by agent
+- All 269 tests pass (0 failures) after opentelemetry installed and otel.py lazy-import fix
+- requirements.stage1.lock.txt regenerated with 24 packages including opentelemetry
+- make dry-run (python3 -m benchmarks.harness --suite quick --device cpu --dry-run): PASS
+- make train dry-run (python3 -m train.harness --suite smoke --device cpu --dry-run): PASS
 - `ls` checks on all file paths claimed in docs — all key paths verified
 
 ## What failed
 
-- 17 test failures (OTel eager import) — documented, fix is known
-- `make test` would fail on this system (python not python3)
+- No test failures. cloud_tpu_lab tests require pip install -e . first.
 
 ## What should not be touched without approval
 
