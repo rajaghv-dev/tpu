@@ -220,7 +220,7 @@ mkdir -p "$JAX_COMPILATION_CACHE_DIR"
 PROFILE_EOF
 CMD
 )
-run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --command="$PROFILE_CMD"
+run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no --command="$PROFILE_CMD"
 
 # ── Propagate HuggingFace token (gated models: Gemma/LLaMA/PaliGemma) ───
 # Priority: GCP Secret Manager (preferred — no laptop→VM transit of the
@@ -256,11 +256,11 @@ if [[ -n "$HF_TOKEN_VALUE" ]]; then
   trap 'shred -u "$TMP_TOKEN" 2>/dev/null || rm -f "$TMP_TOKEN"' EXIT
   printf "%s" "$HF_TOKEN_VALUE" > "$TMP_TOKEN"
   # Prepare the VM dir first (scp can't mkdir).
-  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
     --command="mkdir -p \$HOME/.cache/huggingface \$HOME/.huggingface && chmod 700 \$HOME/.cache/huggingface \$HOME/.huggingface"
   run gcloud compute tpus tpu-vm scp "$TMP_TOKEN" \
-    "$TPU_NAME":~/.cache/huggingface/token --zone="$ZONE"
-  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+    "$TPU_NAME":~/.cache/huggingface/token --zone="$ZONE" --strict-host-key-checking=no
+  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
     --command="chmod 600 \$HOME/.cache/huggingface/token && cp \$HOME/.cache/huggingface/token \$HOME/.huggingface/token && chmod 600 \$HOME/.huggingface/token"
   ok "HF token installed at \$HOME/.cache/huggingface/token (mode 0600)"
 else
@@ -274,7 +274,7 @@ step "Copying repo to ~/tpu-examples"
 if $HAVE_GIT_REMOTE && ! $DETACHED; then
   ok "Strategy: git clone --depth=1 --branch=$BRANCH (only tracked files, no .tpu/.git history/.claude)"
   CLONE_CMD="$REMOTE_PRELUDE && rm -rf \$HOME/tpu-examples && git clone --depth=1 --branch=$BRANCH '$REMOTE_URL' \$HOME/tpu-examples"
-  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
     --command="$CLONE_CMD"
 
   if [[ "$UNCOMMITTED_COUNT" -gt 0 ]]; then
@@ -282,12 +282,12 @@ if $HAVE_GIT_REMOTE && ! $DETACHED; then
     # Build a NUL-delimited list piped to `tar -T -` so paths with spaces are safe,
     # and so we never pass an empty arg list to tar.
     if $DRY_RUN; then
-      printf "  \033[2m\$ tar --exclude=.tpu --exclude=.git --exclude=.claude \\\\\n"
+      printf "  \033[2m\$ tar --exclude=.tpu --exclude=.git --exclude=.claude --exclude=.venv \\\\\n"
       printf "       --exclude=__pycache__ --exclude=.pytest_cache --exclude='*.pyc' \\\\\n"
       printf "       --exclude=results/otel --exclude=results/run_logs \\\\\n"
       printf "       --exclude='results/*.log' --exclude='*.tar.gz' --exclude=otelcol-contrib \\\\\n"
       printf "       -czf - -T <(printf '%%s\\\\0' <files>) --null \\\\\n"
-      printf "    | gcloud compute tpus tpu-vm ssh %s --zone=%s \\\\\n" "$TPU_NAME" "$ZONE"
+      printf "    | gcloud compute tpus tpu-vm ssh %s --zone=%s --strict-host-key-checking=no \\\\\n" "$TPU_NAME" "$ZONE"
       printf "        --command='cd \$HOME/tpu-examples && tar -xzf -'\033[0m\n"
     else
       # Filter the file list to existing paths (deleted files would fail tar).
@@ -299,12 +299,12 @@ if $HAVE_GIT_REMOTE && ! $DETACHED; then
       else
         printf "%s" "$EXISTING" \
           | tar --null --files-from=- \
-                --exclude='.tpu' --exclude='.git' --exclude='.claude' \
+                --exclude='.tpu' --exclude='.git' --exclude='.claude' --exclude='.venv' \
                 --exclude='__pycache__' --exclude='.pytest_cache' --exclude='*.pyc' \
                 --exclude='results/otel' --exclude='results/run_logs' \
                 --exclude='results/*.log' --exclude='*.tar.gz' --exclude='otelcol-contrib' \
                 -czf - \
-          | gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+          | gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
               --command='cd $HOME/tpu-examples && tar -xzf -'
       fi
     fi
@@ -318,20 +318,20 @@ else
   # antipattern that copied .tpu/.git/.claude in the original script.
   warn "Falling back to full tar-with-excludes (no git remote or detached HEAD)."
   if $DRY_RUN; then
-    printf "  \033[2m\$ tar -C %s -czf - --exclude=.tpu --exclude=.git --exclude=.claude \\\\\n" "$PWD"
+    printf "  \033[2m\$ tar -C %s -czf - --exclude=.tpu --exclude=.git --exclude=.claude --exclude=.venv \\\\\n" "$PWD"
     printf "       --exclude=__pycache__ --exclude=.pytest_cache --exclude='*.pyc' \\\\\n"
     printf "       --exclude=results/otel --exclude=results/run_logs \\\\\n"
     printf "       --exclude='results/*.log' --exclude='*.tar.gz' --exclude=otelcol-contrib . \\\\\n"
-    printf "    | gcloud compute tpus tpu-vm ssh %s --zone=%s \\\\\n" "$TPU_NAME" "$ZONE"
+    printf "    | gcloud compute tpus tpu-vm ssh %s --zone=%s --strict-host-key-checking=no \\\\\n" "$TPU_NAME" "$ZONE"
     printf "        --command='mkdir -p \$HOME/tpu-examples && cd \$HOME/tpu-examples && tar -xzf -'\033[0m\n"
   else
     tar -C "$PWD" \
-        --exclude='.tpu' --exclude='.git' --exclude='.claude' \
+        --exclude='.tpu' --exclude='.git' --exclude='.claude' --exclude='.venv' \
         --exclude='__pycache__' --exclude='.pytest_cache' --exclude='*.pyc' \
         --exclude='results/otel' --exclude='results/run_logs' \
         --exclude='results/*.log' --exclude='*.tar.gz' --exclude='otelcol-contrib' \
         -czf - . \
-      | gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+      | gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
           --command='mkdir -p $HOME/tpu-examples && cd $HOME/tpu-examples && tar -xzf -'
   fi
   step "Repo synced (fallback tar mode)"
@@ -383,14 +383,14 @@ if $WHEEL_CACHE_ACTIVE; then
 else
   INSTALL_CMD="$REMOTE_PRELUDE && pip install --quiet -r \$HOME/tpu-examples/requirements.txt"
 fi
-run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
   --command="$INSTALL_CMD"
 
 # ── Optional: rsync HF model cache from GCS ─────────────────────────────
 if $HF_CACHE_ACTIVE; then
   step "Syncing HF model cache from GCS"
   HF_CMD="mkdir -p \$HOME/.cache/huggingface/hub && gsutil -m rsync -r '$HF_MODEL_CACHE_URL' \$HOME/.cache/huggingface/hub/"
-  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
     --command="$HF_CMD"
 fi
 
@@ -408,7 +408,7 @@ OTEL_CMD='
     fi
     mkdir -p results/otel
   '
-run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
   --command="$OTEL_CMD"
 
 # ── Auto-teardown safety net (Tier 3 #11) ───────────────────────────────
@@ -432,7 +432,7 @@ if [[ -n "$SHUTDOWN_MIN" ]]; then
   # operator can cancel any time with `sudo shutdown -c` (or by running
   # teardown_tpu.sh, which deletes the VM outright).
   SHUTDOWN_CMD="sudo shutdown -h +${SHUTDOWN_MIN} 'tpu-bench self-teardown after ${MAX_RUNTIME}'"
-  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+  run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
     --command="$SHUTDOWN_CMD"
 else
   warn "Self-teardown DISABLED (--max-runtime=none). Don't forget teardown_tpu.sh!"
@@ -441,7 +441,7 @@ fi
 # ── hello-TPU smoke check ───────────────────────────────────────────────
 step "Running hello-TPU check"
 HELLO_CMD="$REMOTE_PRELUDE && python \$HOME/tpu-examples/01_hello_tpu/hello_tpu.py"
-run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" \
+run gcloud compute tpus tpu-vm ssh "$TPU_NAME" --zone="$ZONE" --strict-host-key-checking=no \
   --command="$HELLO_CMD"
 
 # ── Done ────────────────────────────────────────────────────────────────
